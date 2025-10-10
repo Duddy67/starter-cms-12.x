@@ -1,0 +1,1 @@
+<p>Hello {{ $data->post_author }}<br /><br />The user {{ $data->comment_author }} has left a comment regarding your post {{ $data->title }}.<br />You can check it out here: {{ $data->post_url }}<br /><br />Best regard, <br />The Starter CMS team.</p>

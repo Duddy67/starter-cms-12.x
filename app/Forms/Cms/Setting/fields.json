@@ -1,0 +1,88 @@
+[
+  {
+    "label": "labels.settings.name",
+    "type": "text",
+    "name": "name",
+    "id": "name",
+    "group": "app",
+    "placeholder": "labels.generic.name"
+  },
+  {
+    "label": "labels.settings.timezone",
+    "type": "select",
+    "name": "timezone",
+    "id": "timezone",
+    "group": "app",
+    "options": [] 
+  },
+  {
+    "label": "labels.settings.date_format",
+    "type": "text",
+    "name": "date_format",
+    "id": "date_format",
+    "group": "app"
+  },
+  {
+    "label": "labels.settings.collation",
+    "type": "text",
+    "name": "collation",
+    "id": "collation",
+    "group": "search"
+  },
+  {
+    "label": "labels.settings.autocomplete_max_results",
+    "type": "text",
+    "name": "autocomplete_max_results",
+    "id": "autocomplete_max_results",
+    "group": "search"
+  },
+  {
+    "label": "labels.settings.per_page",
+    "type": "select",
+    "name": "per_page",
+    "id": "per-page",
+    "group": "pagination",
+    "blank": "labels.generic.select_option",
+    "options": [] 
+  },
+  {
+    "label": "labels.settings.admin_email",
+    "type": "text",
+    "name": "admin_email",
+    "id": "admin_email",
+    "group": "website"
+  },
+  {
+    "label": "labels.settings.email_sending_method",
+    "type": "select",
+    "name": "email_sending_method",
+    "id": "email_sending_method",
+    "group": "website",
+    "options": [] 
+  },
+  {
+    "label": "labels.settings.allow_registering",
+    "type": "select",
+    "name": "allow_registering",
+    "function": "yes_no",
+    "id": "allow_registering",
+    "group": "website",
+    "options": [] 
+  },
+  {
+    "label": "labels.settings.redirect_to_admin",
+    "type": "select",
+    "name": "redirect_to_admin",
+    "function": "yes_no",
+    "id": "redirect_to_admin",
+    "group": "website",
+    "options": [] 
+  },
+  {
+    "label": "labels.settings.theme",
+    "type": "text",
+    "name": "theme",
+    "id": "theme",
+    "group": "website"
+  }
+]

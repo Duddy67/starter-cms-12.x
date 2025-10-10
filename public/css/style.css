@@ -1,0 +1,135 @@
+body {
+    font-family: 'Work Sans', serif;
+    font-weight: 300;
+}
+
+p {
+    font-size: 1.1rem;
+    line-height: 1.3rem;
+}
+
+a {
+    text-decoration: none;
+}
+
+.page-footer {
+  color: #6c757d;
+}
+
+.page-footer .container-fluid {
+  background-color: #f8f9fa;
+}
+
+.footer-content {
+  font-size: 14px;
+}
+
+.footer-copyright {
+  background-color: #e0e0e0;
+}
+
+.footer-posts, .footer-categories {
+  font-size: 14px;
+}
+
+#layout-footer {
+}
+
+.post-image {
+  /*float: left;*/
+  margin-right: 10px;
+}
+
+.text-block {
+  /*background-color: #f8f9fa;*/
+}
+
+.text-block p {
+  /*background-color: #f8f9fa;*/
+}
+
+.ajax-progress {
+  position: absolute;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.33;
+  background-color: #f6f6f6;
+}
+
+.progress-icon {
+  position: absolute;
+  top: 40%;
+  left: 40%;
+}
+
+.modal-dialog {
+   position:fixed;
+   top:auto;
+   right:auto;
+   left:auto;
+   bottom:0;
+   margin-left: 1rem;
+}
+
+/* Dropdown menus are shown when the parent menu link is hovered. */
+.dropdown:hover > .dropdown-menu {
+    display: block;
+    margin-top: 0;
+}
+
+.autocomplete-list {
+    border: 0.1rem solid #ced4da;
+    display: none;
+    border-radius: 5px;
+}
+
+.autocomplete-list div {
+    color: #212529;
+    font-weight: 400;
+    padding: 5px;
+}
+
+.autocomplete-list div:hover {
+    background-color: #f8f9fa;
+    cursor: pointer;
+}
+
+.autocomplete-list .highlight {
+    color: #52baff;
+    font-weight: 500;
+}
+
+/* -- Bootstrap Breakpoints -- */
+
+/* The screen size is smaller than 576px wide.*/
+@media (min-width: 0px) {
+    :root {
+        font-size: 14px;
+    }
+}
+
+/* The screen size is 576px wide or more. Small - sm */
+@media (min-width: 576px) {
+    :root {
+        font-size: 16px;
+    }
+}
+
+/* The screen size is 768px wide or more. Medium - md */
+@media (min-width: 768px) {
+}
+
+/* The screen size is 992px wide or more. Large - lg */
+@media (min-width: 992px) {
+}
+
+/* The screen size is 1200px wide or more. Extra large - xl */
+@media (min-width: 1200px) {
+}
+
+/* The screen size is 1400px wide or more. Extra extra large - xxl */
+@media (min-width: 1400px) {
+}
+
+/**  End breakpoints **/

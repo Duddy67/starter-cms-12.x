@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Cms\Category;
 use App\Models\Cms\Setting;
+use App\Models\Post;
 
 class SiteController extends Controller
 {

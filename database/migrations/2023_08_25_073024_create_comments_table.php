@@ -15,6 +15,7 @@ return new class extends Migration
     {
         Schema::create('comments', function (Blueprint $table) {
             $table->id();
+            $table->char('locale', 2)->nullable();
             $table->text('text')->nullable();
             $table->unsignedBigInteger('owned_by');
             $table->unsignedInteger('commentable_id')->nullable();

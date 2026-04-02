@@ -18,7 +18,6 @@ return new class extends Migration
             $table->unsignedBigInteger('category_id');
             $table->unsignedInteger('orderable_id')->nullable();
             $table->string('orderable_type')->nullable();
-            $table->string('name')->nullable();
 	    $table->unsignedBigInteger('item_order')->nullable();
         });
     }

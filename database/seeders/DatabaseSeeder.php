@@ -33,16 +33,17 @@ class DatabaseSeeder extends Seeder
 
         // Creates the root item which is the parent of all of the menu items.
         $node = new Item;
-        $node->title = 'Root';
         $node->menu_code = 'root';
-        $node->url = 'root';
         $node->status = 'published';
         // Saved as root
         $node->save();
 
+        $translation = $node->getOrCreateTranslation(config('app.locale'));
+        $translation->title = 'Root';
+        $translation->url = 'root';
+        $translation->save();
+
         $menuItem = Item::create([
-            'title' => 'Home',
-            'url' => '/',
             'status' => 'published',
             'parent_id' => 1,
         ]);
@@ -53,40 +54,93 @@ class DatabaseSeeder extends Seeder
         $menuItem->menu_code = 'main-menu';
         $menuItem->save();
 
+        $translation = $menuItem->getOrCreateTranslation('en');
+        $translation->title = 'Home';
+        $translation->url = '/';
+        $translation->save();
+
+        $translation = $menuItem->getOrCreateTranslation('fr');
+        $translation->title = 'Accueil';
+        $translation->url = '/';
+        $translation->save();
+
+        // Create basic emails.
+
         $email = Email::create([
           'code' => 'user-registration',
-          'subject' => 'Welcome {{ $data->name }}',
-          'body_html' => '<p>Hello {{ $data->name }}</p>'.
-          '<p>Welcome to Starter CMS !<br />A user account has been created for you.</p>'.
-          '<p>login: {{ $data->email }}<br />Please use the password you chose during your registration.</p>'.
-          '<p>Best regard,<br />The Starter CMS team.</p>',
+          'updated_by' => 1,
           'plain_text' => 0,
         ]);
 
-        $email->setViewFiles();
+        $translation = $email->getOrCreateTranslation('en');
+        $translation->subject = 'Welcome {{ $data->name }}';
+        $translation->body_html = '<p>Hello {{ $data->name }}</p>'.
+          '<p>Welcome to Starter CMS !<br />A user account has been created for you.</p>'.
+          '<p>login: {{ $data->email }}<br />Please use the password you chose during your registration.</p>'.
+          '<p>Best regard,<br />The Starter CMS team.</p>';
+        $translation->save();
+
+        $email->setViewFiles('en');
+
+        $translation = $email->getOrCreateTranslation('fr');
+        $translation->subject = 'Bienvenue {{ $data->name }}';
+        $translation->body_html = '<p>Bonjour {{ $data->name }}</p>'.
+          '<p>Bienvenue sur Starter CMS !<br />Un compte utilisateur a été créé pour vous.</p>'.
+          '<p>login: {{ $data->email }}<br />Veuillez utiliser le mot de passe que vous avez choisi durant l\'inscription.</p>'.
+          '<p>Cordialement,<br />L\'équipe de Starter CMS.</p>';
+        $translation->save();
+
+        $email->setViewFiles('fr');
 
         $email = Email::create([
           'code' => 'new-message',
-          'subject' => 'New message',
-          'body_html' => '<p>Hello administrator<br /><br />A user has sent a message.<br />'.
-          'Name: {{ $data->name }}<br />Email: {{ $data->email }}<br />Object: {{ $data->object }}<br />'.
-          'Message: {{ $data->message }}<br /><br />Best regard, <br />The Starter CMS team.</p>',
+          'updated_by' => 1,
           'plain_text' => 0,
         ]);
 
-        $email->setViewFiles();
+        $translation = $email->getOrCreateTranslation('en');
+        $translation->subject = 'New message';
+        $translation->body_html = '<p>Hello administrator<br /><br />A user has sent a message.<br />'.
+          'Name: {{ $data->name }}<br />Email: {{ $data->email }}<br />Object: {{ $data->object }}<br />'.
+          'Message: {{ $data->message }}<br /><br />Best regard, <br />The Starter CMS team.</p>';
+        $translation->save();
+
+        $email->setViewFiles('en');
+
+        $translation = $email->getOrCreateTranslation('fr');
+        $translation->subject = 'Nouveau message';
+        $translation->body_html = '<p>Bonjour administrateur<br /><br />Un utilisateur a envoyé un message.<br />'.
+          'Nom: {{ $data->name }}<br />Email: {{ $data->email }}<br />Objet: {{ $data->object }}<br />'.
+          'Message: {{ $data->message }}<br /><br />Cordialement, <br />L\'équipe de Starter CMS.</p>';
+        $translation->save();
+
+        $email->setViewFiles('fr');
 
         $email = Email::create([
           'code' => 'comment-alert',
-          'subject' => 'Comment alert',
-          'body_html' => '<p>Hello {{ $data->post_author }}<br /><br />'.
-          'The user {{ $data->comment_author }} has left a comment regarding your post {{ $data->title }}.<br />'.
-          'You can check it out here: {{ $data->post_url }}'.
-          '<br /><br />Best regard, <br />The Starter CMS team.</p>',
+          'updated_by' => 1,
           'plain_text' => 0,
         ]);
 
-        $email->setViewFiles();
+        $translation = $email->getOrCreateTranslation('en');
+        $translation->subject = 'Comment alert';
+        $translation->body_html = '<p>Hello {{ $data->post_author }}<br /><br />'.
+          'The user {{ $data->comment_author }} has left a comment regarding your post {{ $data->title }}.<br />'.
+          'You can check it out here: {{ $data->post_url }}'.
+          '<br /><br />Best regard, <br />The Starter CMS team.</p>';
+        $translation->save();
+
+        $email->setViewFiles('en');
+
+        $translation = $email->getOrCreateTranslation('fr');
+        $translation->subject = 'Alerte commentaire';
+        $translation->body_html = '<p>Bonjour {{ $data->post_author }}<br /><br />'.
+          'L\'utilisateur {{ $data->comment_author }} a laissé un commentaire concernant votre article {{ $data->title }}.<br />'.
+          'Vous pouvez le lire ici: {{ $data->post_url }}'.
+          '<br /><br />Cordialement, <br />L\'équipe de Starter CMS.</p>';
+        $translation->save();
+
+        $email->setViewFiles('fr');
 
 	// First create the default permissions. 
 	

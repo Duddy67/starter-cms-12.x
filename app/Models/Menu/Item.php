@@ -9,13 +9,14 @@ use App\Traits\Node;
 use App\Models\User\Group;
 use App\Models\Cms\Setting;
 use App\Traits\CheckInCheckOut;
+use App\Traits\Translatable;
 use App\Traits\OptionList;
 use Illuminate\Http\Request;
 
 
 class Item extends Model
 {
-    use HasFactory, Node, CheckInCheckOut, OptionList;
+    use HasFactory, Node, CheckInCheckOut, Translatable, OptionList;
 
     /**
      * The table associated with the model.
@@ -30,8 +31,6 @@ class Item extends Model
      * @var array
      */
     protected $fillable = [
-        'title',
-        'url',
         'model_name',
         'class',
         'anchor',
@@ -51,19 +50,51 @@ class Item extends Model
     ];
 
 
+    /**
+     * Delete the model from the database (override).
+     *
+     * @return bool|null
+     *
+     * @throws \LogicException
+     */
+    public function delete()
+    {
+        $this->translations()->delete();
+
+        parent::delete();
+    }
+
     /*
      * Gets the menu items as a tree.
      */
-    public static function getItems(Request $request, $code)
+    public static function getItems(Request $request, string $code)
     {
         $search = $request->input('search', null);
 
+        $query = Item::select('menu_items.*', 'translations.title as title', 'translations.url as url')
+            ->where('menu_code', $code)
+            ->join('translations', function ($join) use($search) {
+                $join->on('menu_items.id', '=', 'translatable_id')
+                    ->where('translations.translatable_type', Item::class)
+                    ->where('locale', '=', config('app.locale'));
+        });
+
         if ($search !== null) {
-            return Item::where('title', 'like', '%'.$search.'%')->get();
+            $query->where('translations.title', 'like', '%'.$search.'%');
         }
-        else {
-          return Item::where('menu_code', $code)->defaultOrder()->get()->toTree();
-        }
+
+        return $query->defaultOrder()->get()->toTree();
+    }
+
+    public static function getItem($id, $locale)
+    {
+        return Item::select('menu_items.*','users.name as modifier_name', 'translations.title as title', 'translations.url as url')
+            ->leftJoin('users as users', 'menu_items.updated_by', '=', 'users.id')
+            ->leftJoin('translations', function ($join) use($locale) {
+                $join->on('menu_items.id', '=', 'translatable_id')
+                     ->where('translations.translatable_type', '=', Item::class)
+                     ->where('locale', '=', $locale);
+        })->findOrFail($id);
     }
 
     /*
@@ -110,7 +141,14 @@ class Item extends Model
         // Get the parent menu code.
         $code = \Request::route()->parameter('code');
 
-        $nodes = Item::whereIn('menu_code', ['root', $code])->defaultOrder()->get()->toTree();
+        $nodes = Item::select('menu_items.*', 'translations.title as title')
+            ->whereIn('menu_code', ['root', $code])
+            ->join('translations', function($join) {
+                $join->on('menu_items.id', '=', 'translatable_id')
+                     ->where('translations.translatable_type', Item::class)
+                     ->where('locale', '=', config('app.locale'));
+        })->get()->toTree();
+
         // Defines the state of the current instance.
         $isNew = ($this->id) ? false : true;
         $options = [];
@@ -135,5 +173,13 @@ class Item extends Model
         $menu = Menu::where('code', $this->menu_code)->first();
 
         return $menu->canChangeStatus();
+    }
+
+    /*
+     * Generic function that returns model values which are handled by select inputs.
+     */
+    public function getSelectedValue(\stdClass $field): mixed
+    {
+        return $this->{$field->name};
     }
 }

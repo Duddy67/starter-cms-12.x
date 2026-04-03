@@ -36,7 +36,6 @@ class Order extends Model implements Sortable
      */
     protected $fillable = [
         'category_id',
-        'name',
     ];
 
     public $sortable = [
@@ -70,8 +69,6 @@ class Order extends Model implements Sortable
 
         foreach ($categories as $category) {
             if (!in_array($category, $olds)) {
-                // Use the name or title attribute as the item name.
-                $name = (isset($item->name)) ? $item->name : $item->title;
                 $order = Order::create(['category_id' => $category, 'name' => $name]);
                 $item->orders()->save($order);
             }

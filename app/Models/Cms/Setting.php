@@ -168,8 +168,26 @@ class Setting extends Model
     {
         // The locales.php file always lives in the "en" lang folder.
         $segments = __('locales.segments.'.$modelName, [], 'en');
+        // Set a fallback to prevent Artisan commands (cache:clear ...) to generate errors.
+        $locale = \App::runningInConsole() ? app()->getLocale() : request()->segment(1);
+        // The user has just landed on the website, no locale variable has been set yet.
+        $locale = (empty($locale)) ? config('app.fallback_locale') : $locale;
+        // Make sure the locale attribute exists.
+        $locale = (!isset($segments[$locale])) ? config('app.fallback_locale') : $locale; 
 
-        return (isset($segments[config('app.locale')])) ? $segments[config('app.locale')] : $segments[config('app.fallback_locale')];
+        return $segments[$locale];
+    }
+
+    public static function getTimezoneOptions()
+    {
+        $timezoneIdentifiers = \DateTimeZone::listIdentifiers();
+        $options = [];
+
+        foreach ($timezoneIdentifiers as $identifier) {
+            $options[] = ['value' => $identifier, 'text' => $identifier];
+        }
+
+        return $options;
     }
 
     public static function getFormattedDate($date, $format = '')
@@ -187,6 +205,8 @@ class Setting extends Model
         if ($field->name == 'per_page') {
             return $this->where(['group' => 'pagination', 'key' => 'per_page'])->pluck('value')->first();
         }
+
+        return null;
     }
 
     /*

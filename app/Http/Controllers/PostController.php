@@ -16,38 +16,35 @@ use App\Http\Requests\Cms\Comment\UpdateRequest;
 
 class PostController extends Controller
 {
-    public function show(Request $request, $id, $slug)
-    {
-        $post = Post::select('posts.*', 'users.name as owner_name', 'users2.name as modifier_name')
-			->leftJoin('users', 'posts.owned_by', '=', 'users.id')
-			->leftJoin('users as users2', 'posts.updated_by', '=', 'users2.id')
-			->where('posts.id', $id)->where('status', 'published')->first();
-
+    public function show(Request $request, string $locale, int $id, string $slug)
+    {   
+        $post = Post::getPost($id, $locale);
         $page = Setting::getPage('post');
 
         if (!$post || ($post->layoutItems()->exists() && !view()->exists('themes.'.$page['theme'].'.pages.'.$post->page))) {
             $page['name'] = '404';
-            return view('themes.'.$page['theme'].'.index', compact('page'));
-	}
+            return view('themes.'.$page['theme'].'.index', compact('locale', 'page'));
+        }   
 
-	if (!$post->canAccess()) {
+        if (!$post->canAccess()) {
             $page['name'] = '403';
-            return view('themes.'.$page['theme'].'.index', compact('page'));
-	}
+            return view('themes.'.$page['theme'].'.index', compact('locale', 'page'));
+        }   
 
-	$post->settings = $post->getSettings();
+        $post->settings = $post->getSettings();
         // Required in case of extra fields.
         $post->global_settings = Setting::getDataByGroup('posts', $post);
         $metaData = $post->meta_data;
         $segments = Setting::getSegments('Post');
-	$query = array_merge($request->query(), ['id' => $id, 'slug' => $slug]);
+        $query = array_merge($request->query(), ['id' => $id, 'slug' => $slug, 'locale' => $locale]);
 
-        return view('themes.'.$page['theme'].'.index', compact('page', 'id', 'slug', 'post', 'segments', 'metaData', 'query'));
+        return view('themes.'.$page['theme'].'.index', compact('locale', 'page', 'id', 'slug', 'post', 'segments', 'metaData', 'query'));
     }
 
-    public function saveComment(StoreRequest $request, $id, $slug)
+    public function saveComment(StoreRequest $request, string $locale, int $id, string $slug)
     {
         $comment = Comment::create([
+            'locale' => $locale,
             'text' => $request->input('comment-0'), 
             'owned_by' => Auth::id()
         ]);
@@ -86,7 +83,7 @@ class PostController extends Controller
         ]);
     }
 
-    public function updateComment(UpdateRequest $request, Comment $comment)
+    public function updateComment(UpdateRequest $request, string $locale, Comment $comment)
     {
         // Make sure the user match the comment owner.
         if (auth()->user()->id != $comment->owned_by) {
@@ -108,7 +105,7 @@ class PostController extends Controller
         ]);
     }
 
-    public function deleteComment(Request $request, Comment $comment)
+    public function deleteComment(Request $request, string $locale, Comment $comment)
     {
         // Make sure the user match the comment owner.
         if (auth()->user()->id != $comment->owned_by) {

@@ -28,47 +28,55 @@ use App\Models\Cms\Setting;
 |
 */
 
-$segments = Setting::getSegments('Post');
-Route::get('/'.$segments['posts'].'/{id}/{slug}', [PostController::class, 'show'])->name('posts.show');
-
-// Only authenticated users can post comments.
-Route::middleware('auth')->group(function() use($segments) {
-    Route::post('/'.$segments['posts'].'/{id}/{slug}/comments', [PostController::class, 'saveComment'])->name('posts.comments');
-    Route::put('/'.$segments['posts'].'/comments/{comment}', [PostController::class, 'updateComment'])->name('posts.comments.update');
-    Route::delete('/'.$segments['posts'].'/comments/{comment}', [PostController::class, 'deleteComment'])->name('posts.comments.delete');
+Route::get('/', function () {
+    return redirect(app()->getLocale());
 });
 
-Route::get('/'.$segments['posts'].'/'.$segments['categories'].'/{id}/{slug}', [PostCategoryController::class, 'index'])->name('posts.categories');
+Route::prefix('{locale}')
+    ->where(['locale' => '[a-zA-Z]{2}'])
+    ->middleware('setlocale')
+    ->group(function () {
 
-Route::get('/profile', [ProfileController::class, 'show'])->name('profile')->middleware('auth');
+    $segments = Setting::getSegments('Post');
+    Route::get('/'.$segments['posts'].'/{id}/{slug}', [PostController::class, 'show'])->name('posts.show');
+    // Only authenticated users can post comments.
+    Route::post('/'.$segments['posts'].'/{id}/{slug}/comments', [PostController::class, 'saveComment'])->name('posts.comments')->middleware('auth');
+    Route::put('/'.$segments['posts'].'/comments/{comment}', [PostController::class, 'updateComment'])->name('posts.comments.update')->middleware('auth');
+    Route::delete('/'.$segments['posts'].'/comments/{comment}', [PostController::class, 'deleteComment'])->name('posts.comments.delete')->middleware('auth');
+    Route::get('/'.$segments['posts'].'/'.$segments['categories'].'/{id}/{slug}', [PostCategoryController::class, 'index'])->name('posts.categories');
 
-Route::middleware('guest')->group(function () {
+    Route::get('/profile', [ProfileController::class, 'show'])->name('profile');
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [LoginController::class, 'login']);
-});
+    Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
-Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
-
-Route::middleware('auth')->group(function () {
     Route::get('/profile/token', [TokenController::class, 'update'])->name('profile.token');
+
     Route::get('/cms/filemanager', [FileManagerController::class, 'index'])->name('cms.filemanager.index');
     Route::post('/cms/filemanager', [FileManagerController::class, 'upload']);
     Route::delete('/cms/filemanager', [FileManagerController::class, 'destroy'])->name('cms.filemanager.destroy');
+
+    Route::get('/expired', function () {
+        return view('cms.filemanager.expired');
+    })->name('expired');
+
+    Route::middleware(['guest'])->group(function () {
+        Route::get('/register', [RegisterController::class, 'showRegistrationForm'])->name('register');
+        Route::post('/register', [RegisterController::class, 'register']);
+        Route::post('/password/email', [ForgotPasswordController::class, 'sendResetLinkEmail'])->name('password.email');
+        Route::get('/password/reset', [ForgotPasswordController::class, 'showLinkRequestForm'])->name('password.request');
+        Route::post('/password/reset', [ResetPasswordController::class, 'reset'])->name('password.update');
+        Route::get('/password/reset/{token}', [ResetPasswordController::class, 'showResetForm'])->name('password.reset');
+    });
+
+    Route::get('/autocomplete', [SearchController::class, 'autocomplete'])->name('autocomplete');
+    Route::get('/search', [SearchController::class, 'index'])->name('search');
+    Route::post('/contact', [ContactController::class, 'store'])->name('contact.store');
+    Route::get('/{pages?}', [SiteController::class, 'index'])->where('page', '^(?!admin).*$')->name('site.index');
+    Route::get('/{pages}/{id}/{slug}', [SiteController::class, 'show'])->name('site.show');
 });
 
-Route::get('/expired', function () {
-    return view('cms.filemanager.expired');
-})->name('expired');
-
-Route::middleware(['guest'])->group(function () {
-    Route::get('/register', [RegisterController::class, 'showRegistrationForm'])->name('register');
-    Route::post('/register', [RegisterController::class, 'register']);
-    Route::post('/password/email', [ForgotPasswordController::class, 'sendResetLinkEmail'])->name('password.email');
-    Route::get('/password/reset', [ForgotPasswordController::class, 'showLinkRequestForm'])->name('password.request');
-    Route::post('/password/reset', [ResetPasswordController::class, 'reset'])->name('password.update');
-    Route::get('/password/reset/{token}', [ResetPasswordController::class, 'showResetForm'])->name('password.reset');
-});
-
+/***** BACK OFFICE *****/
 Route::prefix('admin')->group(function () {
 
     Route::middleware(['auth', 'admin'])->group(function () {
@@ -86,10 +94,4 @@ Route::prefix('admin')->group(function () {
         Route::group([], __DIR__.'/admin/cms.php');
     });
 });
-
-Route::get('/autocomplete', [SearchController::class, 'autocomplete'])->name('autocomplete');
-Route::get('/search', [SearchController::class, 'index'])->name('search');
-Route::post('/contact', [ContactController::class, 'store'])->name('contact.store');
-Route::get('/{pages?}', [SiteController::class, 'index'])->name('site.index');
-Route::get('/{pages}/{id}/{slug}', [SiteController::class, 'show'])->name('site.show');
 

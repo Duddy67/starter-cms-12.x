@@ -11,14 +11,27 @@ class SiteController extends Controller
 {
     public function index(Request $request)
     {
-        $name = ($request->segment(1)) ? $request->segment(1) : 'home';
+        $locale = $request->segment(1);
+        $posts = null;
+        $settings = $metaData = []; 
+        $query = $request->query();
+        // Get the page name from the url or set it to the home page name in the
+        // corresponding language if none is found.
+        $name = ($request->segment(2)) ? $request->segment(2) : __('locales.homepage.'.$locale, [], 'en');
         $page = Setting::getPage($name);
 
-        $posts = null;
-        $metaData = [];
-        $query = $request->query();
+        $category = Category::getCategory($page['name'], 'post', $locale);
 
-        if ($category = Category::where('slug', $page['name'])->first()) {
+        if ($category) {
+            // Prioritize the category page over the page from the url.
+            $page['name'] = (view()->exists('themes.'.$page['theme'].'.pages.'.$category->page)) ? $category->page : $page['name'];
+
+            // If the page from the url is used, make sure that the view exists.
+            if ($category->page != $page['name'] && !view()->exists('themes.'.$page['theme'].'.pages.'.$page['name'])) {
+                $page['name'] = '404';
+                return view('themes.'.$page['theme'].'.index', compact('locale', 'page'));
+            }   
+
             $category->settings = $category->getSettings();
             // Required in case of category extra fields.
             $category->global_settings = Setting::getDataByGroup('categories', $category);
@@ -33,56 +46,53 @@ class SiteController extends Controller
                 foreach ($posts as $post) {
                     // N.B: Don't set the values directly through the object. Use an array to
                     // prevent the "Indirect modification of overloaded property has no effect" error.
-                    $settings = [];
+                    $settings = []; 
 
                     foreach ($post->settings as $key => $value) {
                         // Set the item setting values against the item global setting.
                         $settings[$key] = ($value == 'global_setting') ? $globalPostSettings[$key] : $post->settings[$key];
-                    }
+                    }   
 
                     $post->settings = $settings;
                     // Required in case of extra fields.
                     $post->global_settings = $globalPostSettings;
-                }
-            }
-        }
-        elseif ($page['name'] == 'home' || file_exists(resource_path().'/views/themes/'.$page['theme'].'/pages/'.$page['name'].'.blade.php')) {
-            return view('themes.'.$page['theme'].'.index', compact('page', 'query'));
+                }   
+            }   
+        }   
+        // Just display the page. Get the page name from the locale page mapping array.
+        elseif (file_exists(resource_path().'/views/themes/'.$page['theme'].'/pages/'.__('locales.pages.'.$page['name'], [], 'en').'.blade.php')) {
+            $page['name'] = __('locales.pages.'.$page['name'], [], 'en');
+            return view('themes.'.$page['theme'].'.index', compact('locale', 'page', 'query'));
         }
         else {
             $page['name'] = '404';
-            return view('themes.'.$page['theme'].'.index', compact('page'));
+            return view('themes.'.$page['theme'].'.index', compact('locale', 'page'));
         }
 
         $segments = Setting::getSegments('Post');
 
-        return view('themes.'.$page['theme'].'.index', compact('page', 'category', 'posts', 'segments', 'metaData', 'query'));
+        return view('themes.'.$page['theme'].'.index', compact('locale', 'page', 'category', 'posts', 'segments', 'metaData', 'query'));
     }
 
 
     public function show(Request $request)
     {
-        $page = Setting::getPage($request->segment(1));
+        $locale = $request->segment(1);
+        $page = Setting::getPage($request->segment(2));
+
+        $category = Category::getCategory($page['name'], 'post', $locale);
 
         // First make sure the category exists.
-	if (!$category = Category::where('slug', $page['name'])->first()) {
+        if (!$category) {
             $page['name'] = '404';
-            return view('themes.'.$page['theme'].'.index', compact('page'));
-        }
+            return view('themes.'.$page['theme'].'.index', compact('locale', 'page'));
+        }   
 
-        // Then make sure the post exists, is published and is part of the category.
-        $post = Post::select('posts.*', 'users.name as owner_name', 'users2.name as modifier_name')
-			->leftJoin('users', 'posts.owned_by', '=', 'users.id')
-			->leftJoin('users as users2', 'posts.updated_by', '=', 'users2.id')
-                        ->join('categorizables', function($join) use($category) {
-                              $join->on('categorizables.categorizable_id', '=', 'posts.id')
-                                   ->where('categorizables.category_id', '=', $category->id);
-                          })->where('posts.id', $request->segment(2))->where('posts.status', 'published')->first();
-
-	if (!$post) {
+        // Then make sure the post exists and is part of the category.
+        if (!$post = Post::getPost($request->segment(3), $locale)) {
             $page['name'] = '404';
-            return view('themes.'.$page['theme'].'.index', compact('page'));
-        }
+            return view('themes.'.$page['theme'].'.index', compact('locale', 'page'));
+        }   
 
         // Required in case of category extra fields.
         $category->global_settings = Setting::getDataByGroup('categories', $category);
@@ -102,6 +112,6 @@ class SiteController extends Controller
             $page['name'] = $post->page;
         }
 
-        return view('themes.'.$page['theme'].'.index', compact('page', 'category', 'post', 'segments', 'metaData', 'query'));
+        return view('themes.'.$page['theme'].'.index', compact('locale', 'page', 'category', 'post', 'segments', 'metaData', 'query'));
     }
 }

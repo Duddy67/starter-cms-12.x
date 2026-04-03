@@ -16,12 +16,13 @@ use App\Traits\OptionList;
 use App\Models\User\Group;
 use App\Traits\TreeAccessLevel;
 use App\Traits\CheckInCheckOut;
+use App\Traits\Translatable;
 use Illuminate\Http\Request;
 
 
 class Category extends Model
 {
-    use HasFactory, Node, TreeAccessLevel, CheckInCheckOut, OptionList;
+    use HasFactory, Node, TreeAccessLevel, CheckInCheckOut, Translatable, OptionList;
 
     /**
      * The table associated with the model.
@@ -36,16 +37,10 @@ class Category extends Model
      * @var array
      */
     protected $fillable = [
-        'name',
-        'slug',
         'status',
         'owned_by',
-        'description',
-        'alt_img',
         'access_level',
         'parent_id',
-        'extra_fields',
-        'meta_data',
         'settings',
     ];
 
@@ -126,31 +121,72 @@ class Category extends Model
     {
         $this->orders()->delete();
         $this->image()->delete();
+        $this->translations()->delete();
         $this->posts()->detach();
         $this->groups()->detach();
 
         parent::delete();
     }
+
     /*
      * Gets the category items as a tree.
      */
     public static function getCategories(Request $request, string $collectionType)
     {
-        $query = Category::query();
-        $query->select('categories.*', 'users.name as owner_name')
-              ->leftJoin('users', 'categories.owned_by', '=', 'users.id')
-              ->where('collection_type', $collectionType);
+        $search = $request->input('search', null);
 
-        if ($search = $request->input('search', null)) {
-            // No tree display while searching.
-            return $query->where('categories.name', 'like', '%'.$search.'%')->get();
-        }
+        $query = Category::select('categories.*', 'users.name as owner_name', 'translations.name as name')
+            ->leftJoin('users', 'categories.owned_by', '=', 'users.id')
+            ->join('translations', function ($join) { 
+                $join->on('categories.id', '=', 'translatable_id')
+                    ->where('translations.translatable_type', '=', Category::class)
+                    ->where('locale', '=', config('app.locale'));
+        })->where('categories.collection_type', $collectionType);
+
+        if ($search !== null) {
+            // No tree for search results.
+            return $query->where('translations.name', 'like', '%'.$search.'%')->defaultOrder()->get();
+        }   
 
         return $query->defaultOrder()->get()->toTree();
     }
 
-    public function getUrl()
+    public static function getCategory(int|string $id, string $collectionType, string $locale)
     {
+        // Check if the $id variable is passed as a slug value (used on front-end).
+        $slug = (is_string($id)) ? true : false;
+
+        $query = Category::selectRaw('categories.*, users.name as owner_name, users2.name as modifier_name,'.
+                                     Category::getFallbackCoalesce(['name', 'slug', 'description',
+                                                                        'alt_img', 'extra_fields', 'meta_data']))
+            ->leftJoin('users', 'categories.owned_by', '=', 'users.id')
+            ->leftJoin('users as users2', 'categories.updated_by', '=', 'users2.id')
+            ->leftJoin('translations AS locale', function ($join) use($id, $locale, $slug) {
+                $join->on('categories.id', '=', 'locale.translatable_id')
+                     ->where('locale.translatable_type', Category::class)
+                     ->where('locale.locale', $locale);
+        // Switch to the fallback locale in case locale is not found, (used on front-end).
+        })->leftJoin('translations AS fallback', function ($join) use($id, $slug) {
+              $join->on('categories.id', '=', 'fallback.translatable_id')
+                   ->where('fallback.translatable_type', Category::class)
+                   ->where('fallback.locale', config('app.fallback_locale'));
+        });
+
+        if ($slug) {
+            $query->where(function($query) use($id) {
+                $query->where('locale.slug', $id)->orWhere('fallback.slug', $id);
+            });
+        }
+
+        $query->where('categories.collection_type', $collectionType);
+
+        return ($slug) ? $query->first() : $query->find($id);
+    }
+
+    public function getUrl($slug = null)
+    {
+        $slug = ($slug) ? $slug : $this->slug;
+
         $segments = Setting::getSegments(ucfirst($this->collection_type));
         return '/'.$segments['categories'].'/'.$this->id.'/'.$this->slug;
     }

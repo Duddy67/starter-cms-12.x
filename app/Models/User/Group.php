@@ -43,7 +43,6 @@ class Group extends Model
         'checked_out_time' => 'datetime'
     ];
 
-
     /**
      * All of the relationships to be touched.
      *

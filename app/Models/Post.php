@@ -12,6 +12,7 @@ use App\Models\Cms\Order;
 use App\Models\User\Group;
 use App\Traits\AccessLevel;
 use App\Traits\CheckInCheckOut;
+use App\Traits\Translatable;
 use App\Traits\OptionList;
 use App\Models\Cms\Document;
 use App\Models\Cms\LayoutItem;
@@ -23,7 +24,7 @@ use Illuminate\Support\Facades\Auth;
 
 class Post extends Model
 {
-    use HasFactory, AccessLevel, CheckInCheckOut, OptionList;
+    use HasFactory, AccessLevel, CheckInCheckOut, Translatable, OptionList;
 
     /**
      * The attributes that are mass assignable.
@@ -31,18 +32,11 @@ class Post extends Model
      * @var array
      */
     protected $fillable = [
-        'title',
-        'slug',
         'status',
         'owned_by',
         'main_cat_id',
-        'content',
-        'excerpt',
-        'alt_img',
         'page',
         'access_level',
-        'extra_fields',
-        'meta_data',
         'settings',
     ];
 
@@ -55,9 +49,6 @@ class Post extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'checked_out_time' => 'datetime',
-        'extra_fields' => 'array',
-        'meta_data' => 'array',
-        'settings' => 'array'
     ];
 
     /**
@@ -143,6 +134,8 @@ class Post extends Model
             $item->delete();
         }
 
+        $this->translations()->delete();
+
         parent::delete();
     }
 
@@ -170,13 +163,22 @@ class Post extends Model
         $categories = $request->input('categories', []);
 
         $query = Post::query();
-        $query->select('posts.*', 'users.name as owner_name')->leftJoin('users', 'posts.owned_by', '=', 'users.id');
+        $query->select('posts.*', 'users.name as owner_name', 'translations.title as title')
+              ->leftJoin('users', 'posts.owned_by', '=', 'users.id');
         // Join the role tables to get the owner's role level.
-        $query->join('model_has_roles', 'posts.owned_by', '=', 'model_id')->join('roles', 'roles.id', '=', 'role_id');
+        $query->join('model_has_roles', 'posts.owned_by', '=', 'model_id')
+              ->join('roles', 'roles.id', '=', 'role_id');
 
-        if ($search !== null) {
-            $query->where('posts.title', 'like', '%'.$search.'%');
-        }
+        // Get the default locale translation.
+        $query->join('translations', function ($join) use($search) {
+            $join->on('posts.id', '=', 'translatable_id')
+                 ->where('translations.translatable_type', '=', Post::class)
+                 ->where('translations.locale', '=', config('app.locale'));
+
+            if ($search !== null) {
+                $join->where('translations.title', 'like', '%'.$search.'%');
+            }
+        });
 
         if ($sortedBy !== null) {
             // Separate name and direction.
@@ -240,10 +242,60 @@ class Post extends Model
         return ($perPage == -1) ? $query->paginate($query->count()) : $query->paginate($perPage);
     }
 
+    public static function getPost(int $id, string $locale)
+    {
+        return Post::selectRaw('posts.*, users.name as owner_name, users2.name as modifier_name,'.
+                                Post::getFallbackCoalesce(['title', 'slug', 'content', 'excerpt',
+                                                                   'raw_content', 'alt_img', 'extra_fields',
+                                                                   'meta_data']))
+            ->leftJoin('users', 'posts.owned_by', '=', 'users.id')
+            ->leftJoin('users as users2', 'posts.updated_by', '=', 'users2.id')
+            ->leftJoin('translations AS locale', function ($join) use($locale) {
+                $join->on('posts.id', '=', 'locale.translatable_id')
+                     ->where('locale.translatable_type', Post::class)
+                     ->where('locale.locale', $locale);
+          // Switch to the fallback locale in case locale is not found, (used on front-end).
+          })->leftJoin('translations AS fallback', function ($join) {
+                $join->on('posts.id', '=', 'fallback.translatable_id')
+                     ->where('fallback.translatable_type', Post::class)
+                     ->where('fallback.locale', config('app.fallback_locale'));
+        })->where('posts.status', 'published')->findOrFail($id);
+    }
+
     public function getUrl()
     {
         $segments = Setting::getSegments('Post');
         return '/'.$segments['posts'].'/'.$this->id.'/'.$this->slug;
+    }
+
+    public function getCategories($locale)
+    {
+        return $this->categories()->selectRaw('categories.*,'.Post::getFallbackCoalesce(['name', 'slug']))
+                    ->leftJoin('translations AS locale', function ($join) use($locale) {
+                        $join->on('categories.id', '=', 'locale.translatable_id')
+                             ->where('locale.translatable_type', '=', Category::class)
+                             ->where('locale.locale', '=', $locale);
+                    // Switch to the fallback locale in case locale is not found, (used on front-end).
+                    })->leftJoin('translations AS fallback', function ($join) {
+                        $join->on('categories.id', '=', 'fallback.translatable_id')
+                             ->where('fallback.translatable_type', Category::class)
+                             ->where('fallback.locale', config('app.fallback_locale'));
+        })->get();
+    }
+
+    public function getLayoutItems($locale)
+    {
+        return $this->layoutItems()->selectRaw('layout_items.*, COALESCE(locale.text, fallback.text) as text')
+                    ->leftJoin('translations AS locale', function ($join) use($locale) {
+                        $join->on('layout_items.id', '=', 'locale.translatable_id')
+                             ->where('locale.translatable_type', '=', LayoutItem::class)
+                             ->where('locale.locale', '=', $locale);
+                  // Switch to the fallback locale in case locale is not found, (used on front-end).
+                  })->leftJoin('translations AS fallback', function ($join) {
+                        $join->on('layout_items.id', '=', 'fallback.translatable_id')
+                             ->where('fallback.translatable_type', LayoutItem::class)
+                             ->where('fallback.locale', config('app.fallback_locale'));
+        })->get();
     }
 
     public function getSettings()
@@ -316,15 +368,30 @@ class Post extends Model
      */
     public static function getCategoryItems(Request $request, Category $category, array $options = [])
     {
+        $locale = ($request->segment(1)) ? $request->segment(1) : config('app.locale');
         $query = Post::query();
-        $query->select('posts.*', 'users.name as owner_name')->leftJoin('users', 'posts.owned_by', '=', 'users.id');
+        $query->selectRaw('posts.*, users.name as owner_name,'.Category::getFallbackCoalesce(['title', 'slug', 'excerpt', 'alt_img']))
+              ->leftJoin('users', 'posts.owned_by', '=', 'users.id');
         // Join the role tables to get the owner's role level.
         $query->join('model_has_roles', 'posts.owned_by', '=', 'model_id')->join('roles', 'roles.id', '=', 'role_id');
+
+        $query->leftJoin('translations AS locale', function ($join) use($locale) { 
+            $join->on('posts.id', '=', 'locale.translatable_id')
+                 ->where('locale.translatable_type', Post::class)
+                 ->where('locale.locale', $locale);
+        }); 
+        // Switch to the fallback locale in case locale is not found.
+        $query->leftJoin('translations AS fallback', function ($join) { 
+            $join->on('posts.id', '=', 'fallback.translatable_id')
+                 ->where('fallback.translatable_type', Post::class)
+                 ->where('fallback.locale', config('app.fallback_locale'));
+        }); 
+
 
         // Get only the posts related to this category. 
         $query->whereHas('categories', function($query) use($category) {
             $query->where('id', $category->id);
-        });
+        }); 
 
         if (Auth::check()) {
 
@@ -433,22 +500,31 @@ class Post extends Model
 
     public static function searchInPosts($keyword)
     {
-        $query = Post::query()->select('posts.*', 'users.name as owner_name')
+        $query = Post::query()->select('posts.*', 'users.name as owner_name',
+                                       'translations.title as title',
+                                       'translations.slug as slug',
+                                       'translations.raw_content as raw_content')
                               ->leftJoin('users', 'posts.owned_by', '=', 'users.id');
+
+        $query->join('translations', function ($join) use($locale) { 
+            $join->on('posts.id', '=', 'translatable_id')
+                 ->where('translations.translatable_type', '=', Post::class)
+                 ->where('translations.locale', '=', $locale);
+        }); 
 
         $query = self::filterQueryByAuth($query);
         $collation = Setting::getValue('search', 'collation');
 
         $query->where(function($query) use($keyword, $collation) {
             if (empty($collation)) {
-                $query->where('title', 'LIKE', '%'.$keyword.'%')
-                      ->orWhere('raw_content', 'LIKE', '%'.$keyword.'%');
-            }
+                $query->where('translations.title', 'LIKE', '%'.$keyword.'%')
+                      ->orWhere('translations.raw_content', 'LIKE', '%'.$keyword.'%');
+            }   
             else {
-                $query->whereRaw('posts.title LIKE "%'.addslashes($keyword).'%" COLLATE '.$collation)
-                      ->orWhereRaw('posts.raw_content LIKE "%'.addslashes($keyword).'%" COLLATE '.$collation);
-            }
-        });
+                $query->whereRaw('translations.title LIKE "%'.addslashes($keyword).'%" COLLATE '.$collation)
+                      ->orWhereRaw('translations.raw_content LIKE "%'.addslashes($keyword).'%" COLLATE '.$collation);
+            }   
+        }); 
 
         return $query;
     }

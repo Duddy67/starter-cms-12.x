@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Request;
 use App\Models\Cms\Document;
+use App\Traits\Translatable;
 
 class LayoutItem extends Model
 {
-    use HasFactory;
+    use HasFactory, Translatable;
 
     public $timestamps = false;
 
@@ -64,10 +65,12 @@ class LayoutItem extends Model
             $this->image->delete();
         }
 
+        $this->translations()->delete();
+
         parent::delete();
     }
 
-    public static function storeItems(object $model): void
+    public static function storeItems(object $model, string $locale): void
     {
         if (isset(request()->all()['layout_items'])) {
             $items = request()->all()['layout_items'];
@@ -98,11 +101,14 @@ class LayoutItem extends Model
 
                         // Store image data.
                         $item->data = ['url' => $image->getUrl(), 'thumbnail' => $image->getThumbnailUrl()];
-                        $item->text = $items['alt_text_'.$id];
                         $item->order = $items['layout_item_ordering_'.$id];
                         $item->save();
                         // Update the image.
                         $item->image = $image;
+
+                        $translation = $item->getOrCreateTranslation($locale);
+                        $translation->text = $items['alt_text_'.$id];
+                        $translation->save();
                     }
 
                     continue;
@@ -114,22 +120,25 @@ class LayoutItem extends Model
                     $type = (!empty($matches[2])) ? $matches[1].'_'.$matches[2] : $matches[1];
                     $id = $matches[3];
                     $order = $items['layout_item_ordering_'.$id];
-                    // The attribute to set by default.
-                    $attribute = 'text';
-
-                    if ($type == 'group_start' || $type == 'group_end') {
-                        $value = self::setGroupData($type, $value);
-                        $attribute = 'data';
-                    }
 
                     if ($item = $model->layoutItems->where('id_nb', $id)->first()) {
-                        $item->{$attribute} = $value;
                         $item->order = $order;
                         $item->save();
                     }
                     else {
-                        $item = LayoutItem::create(['type' => $type, 'id_nb' => $id, $attribute => $value, 'order' => $order]);
+                        $item = LayoutItem::create(['type' => $type, 'id_nb' => $id, 'order' => $order]);
                         $model->layoutItems()->save($item);
+                    }
+
+                    if ($type == 'group_start' || $type == 'group_end') {
+                        $item->data = self::setGroupData($type, $value);
+                        $item->save();
+                    }
+                    // text_block, title.
+                    else {
+                        $translation = $item->getOrCreateTranslation($locale);
+                        $translation->text = $value;
+                        $translation->save();
                     }
                 }
             }

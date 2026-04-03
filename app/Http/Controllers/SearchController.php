@@ -16,14 +16,15 @@ class SearchController extends Controller
      */
     public function index(Request $request)
     {
-        $page = Setting::getPage($request->segment(1));
+        $locale = $request->segment(1);
+        $page = Setting::getPage($request->segment(2));
         $maxRows = Setting::getValue('search', 'autocomplete_max_results');
         $perPage = $request->input('per_page', Setting::getValue('pagination', 'per_page'));
         $posts = collect(new Post);
         $message = __('messages.search.no_matches_found');
 
         if ($request->filled('keyword')) {
-            if (strlen($request->input('keyword')) > 2) {
+            if (strlen($request->input('keyword')) > 3) {
                 $query = Post::searchInPosts($request->input('keyword'));
                 // Get all of the results or the paginated result according to the $perPage value.
                 $posts = ($perPage == -1) ? $query->paginate($query->count()) : $query->paginate($perPage);
@@ -53,7 +54,7 @@ class SearchController extends Controller
             }
         }
           
-        return view('themes.'.$page['theme'].'.index', compact('page', 'posts', 'message', 'maxRows'));
+        return view('themes.'.$page['theme'].'.index', compact('locale', 'page', 'posts', 'message', 'maxRows'));
     }
 
     /**
@@ -77,19 +78,26 @@ class SearchController extends Controller
 
     public function autocomplete(Request $request)
     {
-        $query = Post::query()->select('title', 'raw_content');
+        $query = Post::query()->select('translations.title as title', 'translations.raw_content as raw_content');
         $collation = Setting::getValue('search', 'collation');
         $maxRows = Setting::getValue('search', 'autocomplete_max_results');
+        $locale = $request->segment(1);
 
-        $query->where(function($query) use($request, $collation) { 
+        $query->join('translations', function ($join) use($locale) { 
+            $join->on('posts.id', '=', 'translatable_id')
+                 ->where('translations.translatable_type', '=', Post::class)
+                 ->where('translations.locale', '=', $locale);
+        }); 
+
+        $query->where(function($query) use($request, $collation) {
             if (empty($collation)) {
-                $query->where('title', 'LIKE', '%'.$request->get('query').'%')
-                      ->orWhere('raw_content', 'LIKE', '%'.$request->get('query').'%');
-            }
+                $query->where('translations.title', 'LIKE', '%'.$request->get('query').'%')
+                      ->orWhere('translations.raw_content', 'LIKE', '%'.$request->get('query').'%');
+            }   
             else {
-                $query->whereRaw('posts.title LIKE "%'.addslashes($request->get('query')).'%" COLLATE '.$collation)
-                      ->orWhereRaw('posts.raw_content LIKE "%'.addslashes($request->get('query')).'%" COLLATE '.$collation);
-            }
+                $query->whereRaw('translations.title LIKE "%'.addslashes($request->get('query')).'%" COLLATE '.$collation)
+                      ->orWhereRaw('translations.raw_content LIKE "%'.addslashes($request->get('query')).'%" COLLATE '.$collation);
+            }   
         });
 
         $query = Post::filterQueryByAuth($query);

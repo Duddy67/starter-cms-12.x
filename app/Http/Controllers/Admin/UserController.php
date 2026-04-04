@@ -200,6 +200,7 @@ class UserController extends Controller
             'password' => Hash::make($request->input('password')),
         ]);
 
+        $user->updated_by = auth()->user()->id;
         $user->save();
 
         $user->assignRole($request->input('role'));

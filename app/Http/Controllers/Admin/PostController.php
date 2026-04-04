@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use App\Models\Post;
+use App\Models\Post\Setting as PostSetting;
 use App\Models\User;
 use App\Models\Cms\Setting;
 use App\Models\User\Group;
@@ -59,6 +60,7 @@ class PostController extends Controller
         $filters = $this->getFilters($request);
         $items = Post::getPosts($request);
         $rows = $this->getRows($columns, $items);
+        $this->setRowValues($rows, $columns, $items);
         $query = $request->query();
         $url = ['route' => 'admin.posts', 'item_name' => 'post', 'query' => $query];
 
@@ -75,12 +77,14 @@ class PostController extends Controller
     {
         // Gather the needed data to build the form.
 
+        $locale = config('app.locale');
         $fields = $this->getFields(['updated_by', 'created_at', 'updated_at', 'owner_name']);
+        $this->item->current_locale = $locale;
         $this->setFieldValues($fields, $this->item);
         $actions = $this->getActions('form', ['destroy']);
         $query = $request->query();
 
-        return view('admin.post.form', compact('fields', 'actions', 'query'));
+        return view('admin.post.form', compact('fields', 'actions', 'locale', 'query'));
     }
 
     /**
@@ -92,32 +96,31 @@ class PostController extends Controller
      */
     public function edit(Request $request, int $id)
     {
-        $post = $this->item = Post::select('posts.*', 'users.name as owner_name', 'users2.name as modifier_name')
-                                    ->leftJoin('users', 'posts.owned_by', '=', 'users.id')
-                                    ->leftJoin('users as users2', 'posts.updated_by', '=', 'users2.id')
-                                    ->findOrFail($id);
-                        
+        $locale = ($request->query('locale', null)) ? $request->query('locale') : config('app.locale');
+        $post = $this->item = Post::getPost($id, $locale);
+                               
         if (!$post->canAccess()) {
             return redirect()->route('admin.posts.index')->with('error',  __('messages.generic.access_not_auth'));
-        }
+        }   
 
         if ($post->checked_out && $post->checked_out != auth()->user()->id && !$post->isUserSessionTimedOut()) {
             return redirect()->route('admin.posts.index')->with('error',  __('messages.generic.checked_out'));
-        }
+        }   
 
         $post->checkOut();
 
         // Gather the needed data to build the form.
         $except = (auth()->user()->getRoleLevel() > $post->getOwnerRoleLevel() || $post->owned_by == auth()->user()->id) ? ['owner_name'] : ['owned_by'];
         $fields = $this->getFields($except);
+        $post->current_locale = $locale;
         $this->setFieldValues($fields, $post);
-        $except = (!$post->canEdit()) ? ['destroy', 'save', 'saveClose'] : [];
+        $except = (!$post->canEdit()) ? ['destroy', 'save', 'saveClose'] : []; 
         $actions = $this->getActions('form', $except);
         $dateFormat = Setting::getValue('app', 'date_format');
         // Add the id parameter to the query.
         $query = array_merge($request->query(), ['post' => $id]);
 
-        return view('admin.post.form', compact('post', 'fields', 'actions', 'dateFormat', 'query'));
+        return view('admin.post.form', compact('post', 'fields', 'actions', 'locale', 'dateFormat', 'query'));
     }
 
     /**
@@ -155,24 +158,14 @@ class PostController extends Controller
             return response()->json(['redirect' => route('admin.posts.index', $request->query())]);
         }
 
-        $post->title = $request->input('title');
-        $post->slug = ($request->input('slug')) ? Str::slug($request->input('slug'), '-') : Str::slug($request->input('title'), '-');
-        $post->content = $request->input('content');
-        $post->excerpt = $request->input('excerpt');
-        $post->alt_img = $request->input('alt_img');
         $post->page = $request->input('page');
-        $post->meta_data = $request->input('meta_data');
-        $post->extra_fields = $request->input('extra_fields');
         $post->settings = $request->input('settings');
         $post->updated_by = auth()->user()->id;
-        LayoutItem::storeItems($post);
+        LayoutItem::storeItems($post, $request->input('locale'));
 
         // As the page is not reload after updating in AJAX, the newly created or updated
         // layout item data (if any) have to be refreshed.
         $post->load('layoutItems');
-
-        // Prioritize layout items over regular content when storing raw content.
-        $post->raw_content = ($post->layoutItems()->exists()) ? $post->getLayoutRawContent() : strip_tags($request->input('content'));
 
         if ($post->canChangeAccessLevel()) {
             $post->access_level = $request->input('access_level');
@@ -220,6 +213,13 @@ class PostController extends Controller
 
         $post->save();
 
+        $translation = $post->getOrCreateTranslation($request->input('locale'));
+        $translation->setAttributes($request, ['title', 'content', 'excerpt', 'alt_img', 'meta_data', 'extra_fields']);
+        $translation->slug = ($request->input('slug')) ? Str::slug($request->input('slug'), '-') : Str::slug($request->input('title'), '-');
+        // Prioritize layout items over regular content when storing raw content.
+        $translation->raw_content = ($post->layoutItems()->exists()) ? $post->getLayoutRawContent($request->input('locale')) : strip_tags($request->input('content'));
+        $translation->save();
+
         if ($image = $this->uploadImage($request)) {
             // Delete the previous post image if any.
             if ($post->image) {
@@ -254,26 +254,25 @@ class PostController extends Controller
     public function store(StoreRequest $request)
     {
         $post = Post::create([
-            'title' => $request->input('title'), 
-            'slug' => ($request->input('slug')) ? Str::slug($request->input('slug'), '-') : Str::slug($request->input('title'), '-'),
             'status' => $request->input('status'), 
-            'content' => $request->input('content'), 
             'access_level' => $request->input('access_level'), 
             'owned_by' => $request->input('owned_by'),
             'main_cat_id' => $request->input('main_cat_id'),
-            'alt_img' => $request->input('alt_img'),
             'page' => $request->input('page'),
-            'meta_data' => $request->input('meta_data'),
-            'extra_fields' => $request->input('extra_fields'),
             'settings' => $request->input('settings'),
-            'excerpt' => $request->input('excerpt'),
         ]);
 
-        LayoutItem::storeItems($post);
-        // Prioritize layout items over regular content when storing raw content.
-        $post->raw_content = ($post->layoutItems()->exists()) ? $post->getLayoutRawContent() : strip_tags($request->input('content'));
+        LayoutItem::storeItems($post, config('app.locale'));
+        $post->updated_by = auth()->user()->id;
 
         $post->save();
+
+        $translation = $post->getOrCreateTranslation(config('app.locale'));
+        $translation->setAttributes($request, ['title', 'content', 'excerpt', 'alt_img', 'meta_data', 'extra_fields']);
+        $translation->slug = ($request->input('slug')) ? Str::slug($request->input('slug'), '-') : Str::slug($request->input('title'), '-');
+        // Prioritize layout items over regular content when storing raw content.
+        $translation->raw_content = ($post->layoutItems()->exists()) ? $post->getLayoutRawContent(config('app.locale')) : strip_tags($request->input('content'));
+        $translation->save();
 
         if ($request->input('groups') !== null) {
             $post->groups()->attach($request->input('groups'));
@@ -311,7 +310,7 @@ class PostController extends Controller
             return redirect()->route('admin.posts.edit', array_merge($request->query(), ['post' => $post->id]))->with('error',  __('messages.generic.delete_not_auth'));
         }
 
-        $name = $post->name;
+        $title = $post->getTranslation(config('app.locale'))->title;
         $post->delete();
 
         return redirect()->route('admin.posts.index', $request->query())->with('success', __('messages.post.delete_success', ['name' => $name]));
@@ -505,9 +504,11 @@ class PostController extends Controller
     public function layout(Request $request, Post $post)
     {
         $data = [];
+        $locale = ($request->query('locale', null)) ? $request->query('locale') : config('app.locale');
 
         foreach ($post->layoutItems as $item) {
-            $data[] = ['id_nb' => $item->id_nb, 'type' => $item->type, 'text' => $item->text, 'data' => $item->data, 'order' => $item->order];
+            $text = (str_starts_with($item->type, 'group_') || $item->getTranslation($locale) === null) ? '' : $item->getTranslation($locale)->text;
+            $data[] = ['id_nb' => $item->id_nb, 'type' => $item->type, 'text' => $text, 'data' => $item->data, 'order' => $item->order];
         }
 
         return response()->json($data);
@@ -601,6 +602,33 @@ class PostController extends Controller
     }
 
     /*
+     * Sets the row values specific to the Post model.
+     *
+     * @param  Array  $rows
+     * @param  Array of stdClass Objects  $columns
+     * @param  \Illuminate\Pagination\LengthAwarePaginator  $groups
+     * @return void
+     */
+    private function setRowValues(&$rows, $columns, $items)
+    {
+        foreach ($items as $key => $item) {
+            foreach ($columns as $column) {
+                if ($column->name == 'locales') {
+                    $locales = '';
+
+                    foreach ($item->translations as $translation) {
+                        $locales .= $translation->locale.', ';
+                    }
+
+                    $locales = substr($locales, 0, -2);
+
+                    $rows[$key]->locales = $locales;
+                }
+            }
+        }
+    }
+
+    /*
      * Sets field values specific to the Post model.
      *
      * @param  Array of stdClass Objects  $fields
@@ -610,12 +638,24 @@ class PostController extends Controller
     private function setFieldValues(array &$fields, Post $post)
     {
         $globalSettings = Setting::getDataByGroup('posts', $post);
+
         foreach ($globalSettings as $key => $value) {
             if (str_starts_with($key, 'alias_extra_field_')) {
                 foreach ($fields as $field) {
                     if ($field->name == $key) {
                         $field->value = ($value) ? $value : __('labels.generic.none');
                     }
+                }
+            }
+        }
+
+        // Empty the translation fields if the translation for the current locale hasn't been created yet.
+        if ($post && $post->getTranslation($post->current_locale) === null) {
+            foreach ($fields as $field) {
+                if (in_array($field->name, ['title', 'slug', 'content', 'excerpt', 'alt_img'])
+                    || str_starts_with($field->name, 'meta_')
+                    || str_starts_with($field->name, 'extra_field_')) {
+                    $field->value = null;
                 }
             }
         }

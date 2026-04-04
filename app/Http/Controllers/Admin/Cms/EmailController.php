@@ -48,6 +48,7 @@ class EmailController extends Controller
         $filters = $this->getFilters($request);
 	$items = Email::getEmails($request);
 	$rows = $this->getRows($columns, $items);
+        $this->setRowValues($rows, $columns, $items);
 	$query = $request->query();
 	$url = ['route' => 'admin.cms.emails', 'item_name' => 'email', 'query' => $query];
         $message = __('messages.email.test_email_sending', ['email' => auth()->user()->email]);
@@ -67,6 +68,7 @@ class EmailController extends Controller
         $fields = $this->getFields(['updated_by', 'owner_name']);
         $actions = $this->getActions('form', ['destroy']);
 	$query = $request->query();
+        $locale = config('app.locale');
 
         return view('admin.cms.email.form', compact('fields', 'actions', 'query'));
     }
@@ -80,10 +82,8 @@ class EmailController extends Controller
      */
     public function edit(Request $request, $id)
     {
-        // Gather the needed data to build the form.
-        $email = $this->item = Email::select('emails.*', 'users.name as modifier_name')
-                                      ->leftJoin('users', 'emails.updated_by', '=', 'users.id')
-                                      ->findOrFail($id);
+        $locale = ($request->query('locale', null)) ? $request->query('locale') : config('app.locale');
+        $email = $this->item = Email::getEmail($id, $locale);
 
 	if ($email->checked_out && $email->checked_out != auth()->user()->id && !$email->isUserSessionTimedOut()) {
 	    return redirect()->route('admin.cms.emails.index')->with('error',  __('messages.generic.checked_out'));
@@ -101,7 +101,7 @@ class EmailController extends Controller
 	// Add the id parameter to the query.
 	$query = array_merge($request->query(), ['email' => $id]);
 
-        return view('admin.cms.email.form', compact('email', 'fields', 'actions', 'dateFormat', 'query'));
+        return view('admin.cms.email.form', compact('email', 'fields', 'actions', 'locale', 'dateFormat', 'query'));
     }
 
     /**
@@ -117,7 +117,7 @@ class EmailController extends Controller
 	    $email->safeCheckIn();
 	}
 
-	return redirect()->route('admin.cms.emails.index', $request->query());
+        return redirect()->route('admin.cms.emails.index', \Arr::except($request->query(), ['locale']));
     }
 
     /**
@@ -142,9 +142,6 @@ class EmailController extends Controller
      */
     public function update(UpdateRequest $request, Email $email)
     {
-	$email->subject = $request->input('subject');
-	$email->body_html = $request->input('body_html');
-	$email->body_text = $request->input('body_text');
 	$email->updated_by = auth()->user()->id;
 
 	if (auth()->user()->isSuperAdmin()) {
@@ -153,6 +150,14 @@ class EmailController extends Controller
 	}
 
 	$email->save();
+
+        $translation = $email->getOrCreateTranslation($request->input('locale'));
+        $translation->setAttributes($request, ['subject', 'body_text']);
+        // Replace the HTML entities set by the editor in the code placeholders (eg: {{ $data-&gt;name }}).
+        $translation->body_html = preg_replace('#({{[\s\$a-zA-Z0-9_]+)-&gt;([a-zA-Z0-9_\s]+}})#', '$1->$2', $request->input('body_html'));
+        $translation->save();
+
+        $email->setViewFiles($request->input('locale'));
 
         if ($request->input('_close', null)) {
             $email->safeCheckIn();
@@ -177,13 +182,20 @@ class EmailController extends Controller
 	$plainText = ($request->input('format') == 'plain_text') ? 1 : 0;
 
 	$email = Email::create(['code' => $request->input('code'),
-				'subject' => $request->input('subject'),
-				'body_html' => $request->input('body_html'),
-				'body_text' => $request->input('body_text'),
 				'plain_text' => $plainText,
 	]);
 
+        $email->updated_by = auth()->user()->id;
         $email->save();
+
+        // Store the very first translation as the default locale.
+        $translation = $email->getOrCreateTranslation(config('app.locale'));
+        $translation->setAttributes($request, ['subject', 'body_text']);
+        // Replace the HTML entities set by the editor in the code placeholders (eg: {{ $data-&gt;name }}).
+        $translation->body_html = preg_replace('#({{[\s\$a-zA-Z0-9_]+)-&gt;([a-zA-Z0-9_\s]+}})#', '$1->$2', $request->input('body_html'));
+        $translation->save();
+
+        $email->setViewFiles(config('app.locale'));
 
         $request->session()->flash('success', __('messages.email.create_success'));
 
@@ -204,7 +216,7 @@ class EmailController extends Controller
      */
     public function destroy(Request $request, Email $email)
     {
-	$code = $email->code;
+        $code = $email->getTranslation(config('app.locale'))->code;
 	$email->delete();
 
 	return redirect()->route('admin.cms.emails.index', $request->query())->with('success', __('messages.email.delete_success', ['name' => $code]));
@@ -241,6 +253,33 @@ class EmailController extends Controller
         }
 
         return redirect()->route('admin.cms.emails.index')->with('error', __('messages.email.test_email_sending_error'));
+    }
+
+    /*
+     * Sets the row values specific to the Post model.
+     *
+     * @param  Array  $rows
+     * @param  Array of stdClass Objects  $columns
+     * @param  \Illuminate\Pagination\LengthAwarePaginator  $groups
+     * @return void
+     */
+    private function setRowValues(&$rows, $columns, $items)
+    {
+        foreach ($items as $key => $item) {
+            foreach ($columns as $column) {
+                if ($column->name == 'locales') {
+                    $locales = '';
+
+                    foreach ($item->translations as $translation) {
+                        $locales .= $translation->locale.', ';
+                    }
+
+                    $locales = substr($locales, 0, -2);
+
+                    $rows[$key]->locales = $locales;
+                }
+            }
+        }
     }
 
     /*

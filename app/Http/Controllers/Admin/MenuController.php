@@ -206,6 +206,7 @@ class MenuController extends Controller
             $menu->groups()->attach($request->input('groups'));
         }
 
+        $menu->updated_by = auth()->user()->id;
         $menu->save();
 
         $request->session()->flash('success', __('messages.menu.create_success'));

@@ -72,13 +72,15 @@ class CategoryController extends Controller
     {
         // Gather the needed data to build the form.
 
+        $locale = config('app.locale');
         $fields = $this->getFields(['updated_by', 'created_at', 'updated_at', 'owner_name']);
+        $this->item->current_locale = $locale;
         $this->setFieldValues($fields, $this->item);
         $actions = $this->getActions('form', ['destroy']);
         $query = $request->query();
         $collection = 'posts';
 
-        return view('admin.cms.category.form', compact('fields', 'collection', 'actions', 'query'));
+        return view('admin.cms.category.form', compact('fields', 'collection', 'actions', 'locale', 'query'));
     }
 
     /**
@@ -90,10 +92,8 @@ class CategoryController extends Controller
      */
     public function edit(Request $request, $id)
     {
-        $category = $this->item = Category::select('categories.*', 'users.name as owner_name', 'users2.name as modifier_name')
-                                            ->leftJoin('users', 'categories.owned_by', '=', 'users.id')
-                                            ->leftJoin('users as users2', 'categories.updated_by', '=', 'users2.id')
-                                            ->findOrFail($id);
+        $locale = ($request->query('locale', null)) ? $request->query('locale') : config('app.locale');
+        $category = $this->item = Category::getCategory($id, 'post', $locale);
 
         if (!$category->canAccess()) {
             return redirect()->route('admin.posts.categories.index')->with('error',  __('messages.generic.access_not_auth'));
@@ -110,6 +110,7 @@ class CategoryController extends Controller
         $except = (auth()->user()->getRoleLevel() > $category->getOwnerRoleLevel() || $category->owned_by == auth()->user()->id) ? ['owner_name'] : ['owned_by'];
 
         $fields = $this->getFields($except);
+        $category->current_locale = $locale;
         $this->setFieldValues($fields, $category);
         $except = (!$category->canEdit()) ? ['destroy', 'save', 'saveClose'] : [];
         $actions = $this->getActions('form', $except);
@@ -120,7 +121,7 @@ class CategoryController extends Controller
         $owner = User::find($category->owned_by);
         $collection = 'posts';
 
-        return view('admin.cms.category.form', compact('category', 'collection', 'owner', 'fields', 'actions', 'dateFormat', 'query'));
+        return view('admin.cms.category.form', compact('category', 'collection', 'owner', 'fields', 'locale', 'actions', 'dateFormat', 'query'));
     }
 
     /**
@@ -136,7 +137,7 @@ class CategoryController extends Controller
             $category->safeCheckIn();
         }
 
-        return redirect()->route('admin.posts.categories.index', $request->query());
+        return redirect()->route('admin.posts.categories.index', \Arr::except($request->query(), ['locale']));
     }
 
     /**
@@ -172,14 +173,9 @@ class CategoryController extends Controller
             }
         }
 
-        $category->name = $request->input('name');
-        $category->slug = ($request->input('slug')) ? Str::slug($request->input('slug'), '-') : Str::slug($request->input('name'), '-');
-        $category->description = $request->input('description');
-        $category->extra_fields = $request->input('extra_fields');
-        $category->alt_img = $request->input('alt_img');
-        $category->meta_data = $request->input('meta_data');
         $category->settings = $request->input('settings');
         $category->updated_by = auth()->user()->id;
+        $category->page = $request->input('page');
 
         if ($category->canChangeAttachments()) {
 
@@ -240,6 +236,11 @@ class CategoryController extends Controller
 
         $category->save();
 
+        $translation = $category->getOrCreateTranslation($request->input('locale'));
+        $translation->setAttributes($request, ['name', 'description', 'extra_fields', 'meta_data', 'alt_img']);
+        $translation->slug = ($request->input('slug')) ? Str::slug($request->input('slug'), '-') : Str::slug($request->input('name'), '-');
+        $translation->save();
+
         if ($image = $this->uploadImage($request)) {
             // Delete the previous post image if any.
             if ($category->image()->count()) {
@@ -254,7 +255,7 @@ class CategoryController extends Controller
             $category->safeCheckIn();
             // Store the message to be displayed on the list view after the redirect.
             $request->session()->flash('success', __('messages.category.update_success'));
-            return response()->json(['redirect' => route('admin.posts.categories.index', $request->query())]);
+            return response()->json(['redirect' => route('admin.posts.categories.index', \Arr::except($request->query(), ['locale']))]);
         }
 
         $this->item = $category;
@@ -288,31 +289,33 @@ class CategoryController extends Controller
         }
 
         $category = Category::create([
-            'name' => $request->input('name'), 
-            'slug' => ($request->input('slug')) ? Str::slug($request->input('slug'), '-') : Str::slug($request->input('name'), '-'),
             'status' => $request->input('status'), 
-            'description' => $request->input('description'), 
-            'alt_img' => $request->input('alt_img'),
             'access_level' => $request->input('access_level'), 
+            'page' => $request->input('page'),
             'owned_by' => $request->input('owned_by'),
             'parent_id' => (empty($request->input('parent_id'))) ? null : $request->input('parent_id'),
-            'extra_fields' => $request->input('extra_fields'),
-            'meta_data' => $request->input('meta_data'),
             'settings' => $request->input('settings'),
         ]);
-
-        $category->collection_type = 'post';
 
         if ($category->parent_id) {
             $parent = Category::findOrFail($category->parent_id);
             $parent->appendNode($category);
         }
 
+        $category->updated_by = auth()->user()->id;
+        $category->collection_type = 'post';
+
         $category->save();
 
         if ($request->input('groups') !== null) {
             $category->groups()->attach($request->input('groups'));
         }
+
+        // Store the very first translation as the default locale.
+        $translation = $category->getOrCreateTranslation(config('app.locale'));
+        $translation->setAttributes($request, ['name', 'description', 'extra_fields', 'meta_data', 'alt_img']);
+        $translation->slug = ($request->input('slug')) ? Str::slug($request->input('slug'), '-') : Str::slug($request->input('name'), '-');
+        $translation->save();
 
         if ($image = $this->uploadImage($request)) {
             $category->image()->save($image);
@@ -341,7 +344,7 @@ class CategoryController extends Controller
             return redirect()->route('admin.posts.categories.edit', array_merge($request->query(), ['category' => $category->id]))->with('error',  __('messages.generic.delete_not_auth'));
         }
 
-        $name = $category->name;
+        $name = $category->getTranslation(config('app.locale'))->name;
 
         $category->deleteDescendants();
         $category->delete();
@@ -528,6 +531,44 @@ class CategoryController extends Controller
     }
 
     /*
+     * Sets the row values specific to the Category model.
+     *
+     * @param  Array  $rows
+     * @param  Array of stdClass Objects  $columns
+     * @param  Kalnoy\Nestedset\Collection  $items
+     * @return void
+     */
+    private function setRowValues(&$rows, $columns, $items)
+    {
+        $traverse = function ($categories) use (&$traverse, $rows, $columns) {
+            // Use the number of times the recursive function is called as the $rows id.
+            static $counter = 0;
+
+            foreach ($categories as $item) {
+                foreach ($columns as $column) {
+                    if ($column->name == 'locales') {
+                        $locales = '';
+
+                        foreach ($item->translations as $translation) {
+                            $locales .= $translation->locale.', ';
+                        }
+
+                        $locales = substr($locales, 0, -2);
+
+                        $rows[$counter]->locales = $locales;
+                    }
+                }
+
+                $counter++;
+
+                $traverse($item->children);
+            }
+        };
+
+        $traverse($items);
+    }
+
+    /*
      * Sets field values specific to the Category model.
      *
      * @param  Array of stdClass Objects  $fields
@@ -554,6 +595,8 @@ class CategoryController extends Controller
             return;
         }
 
+        $localeExists = ($category->getTranslation($category->current_locale) === null) ? false : true;
+
         foreach ($fields as $field) {
             if ($field->name == 'parent_id') {
                 foreach ($field->options as $key => $option) {
@@ -566,6 +609,13 @@ class CategoryController extends Controller
 
             if (isset($field->group) && $field->group == 'settings') {
                 $field->value = (isset($category->settings[$field->name])) ? $category->settings[$field->name] : null;
+            }
+
+            // Empty the translation fields if the translation for the current locale hasn't been created yet.
+            if (!$localeExists && (in_array($field->name, ['name', 'slug', 'description', 'alt_img'])
+                || str_starts_with($field->name, 'meta_')
+                || str_starts_with($field->name, 'extra_field_'))) {
+                $field->value = null;
             }
         }
     }

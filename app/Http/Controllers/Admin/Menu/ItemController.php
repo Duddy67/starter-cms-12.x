@@ -84,8 +84,9 @@ class ItemController extends Controller
         $fields = $this->getFields(['updated_by', 'created_at', 'updated_at', 'owner_name']);
         $actions = $this->getActions('form', ['destroy']);
         $query = array_merge($request->query(), ['code' => $code]);
+        $locale = config('app.locale');
 
-        return view('admin.menu.item.form', compact('fields', 'actions', 'query'));
+        return view('admin.menu.item.form', compact('fields', 'actions', 'locale', 'query'));
     }
 
     /**
@@ -97,9 +98,8 @@ class ItemController extends Controller
      */
     public function edit(Request $request, $code, $id)
     {
-        $item = $this->item = Item::select('menu_items.*','users.name as modifier_name')
-                                    ->leftJoin('users as users', 'menu_items.updated_by', '=', 'users.id')
-                                    ->findOrFail($id);
+        $locale = ($request->query('locale', null)) ? $request->query('locale') : config('app.locale');
+        $item = $this->item = Item::getItem($id, $locale);
 
         if ($item->checked_out && $item->checked_out != auth()->user()->id && !$item->isUserSessionTimedOut()) {
             return redirect()->route('admin.menus.items.index', array_merge($request->query(), ['code' => $code]))->with('error',  __('messages.generic.checked_out'));
@@ -124,7 +124,7 @@ class ItemController extends Controller
         // Add the id parameter to the query.
         $query = array_merge($request->query(), ['code' => $code, 'item' => $id]);
 
-        return view('admin.menu.item.form', compact('item', 'fields', 'actions', 'dateFormat', 'query'));
+        return view('admin.menu.item.form', compact('item', 'fields', 'locale', 'actions', 'dateFormat', 'query'));
     }
 
     /**
@@ -140,7 +140,7 @@ class ItemController extends Controller
             $item->safeCheckIn();
         }
 
-        return redirect()->route('admin.menus.items.index', array_merge($request->query(), ['code' => $code]));
+        return redirect()->route('admin.menus.items.index', array_merge(\Arr::except($request->query(), ['locale']), ['code' => $code]));
     }
 
     /**
@@ -151,7 +151,7 @@ class ItemController extends Controller
      * @param  \App\Models\Menu\Item  $item
      * @return JSON
      */
-    public function update(UpdateRequest $request, $code, Item $item)
+    public function update(UpdateRequest $request, string $code, Item $item)
     {
         if ($item->checked_out != auth()->user()->id) {
             $request->session()->flash('error', __('messages.generic.user_id_does_not_match'));
@@ -172,8 +172,6 @@ class ItemController extends Controller
             return response()->json(['error' => __('messages.generic.must_not_be_descendant')]);
         }
 
-        $item->title = $request->input('title');
-        $item->url = $request->input('url');
         $item->model_name = $request->input('model_name');
         $item->class = $request->input('class');
         $item->anchor = $request->input('anchor');
@@ -183,10 +181,15 @@ class ItemController extends Controller
 
         $item->save();
 
+        $translation = $item->getOrCreateTranslation($request->input('locale'));
+        $translation->setAttributes($request, ['title', 'url']);
+        $translation->save();
+
         if ($request->input('_close', null)) {
             $item->safeCheckIn();
             // Store the message to be displayed on the list view after the redirect.
             $request->session()->flash('success', __('messages.menuitem.update_success'));
+            $query = \Arr::except($request->query(), ['locale']);
             return response()->json(['redirect' => route('admin.menus.items.index', array_merge($request->query(), ['code' => $code]))]);
         }
 
@@ -214,8 +217,6 @@ class ItemController extends Controller
         $parent = Item::findOrFail($request->input('parent_id'));
 
         $item = Item::create([
-            'title' => $request->input('title'), 
-            'url' => $request->input('url'), 
             'model_name' => $request->input('model_name'), 
             'class' => $request->input('class'), 
             'anchor' => $request->input('anchor'), 
@@ -225,8 +226,14 @@ class ItemController extends Controller
 
         $parent->appendNode($item);
         $item->menu_code = $code;
+        $item->updated_by = auth()->user()->id;
 
         $item->save();
+
+        // Store the very first translation as the default locale.
+        $translation = $item->getOrCreateTranslation(config('app.locale'));
+        $translation->setAttributes($request, ['title', 'url']);
+        $translation->save();
 
         $request->session()->flash('success', __('messages.menuitem.create_success'));
 
@@ -252,12 +259,12 @@ class ItemController extends Controller
             return redirect()->route('admin.menus.items.index', array_merge($request->query(), ['code' => $code]))->with('error',  __('messages.generic.delete_not_auth'));
         }
 
-        $name = $item->name;
+        $title = $item->getTranslation(config('app.locale'))->title;
 
         $item->deleteDescendants();
         $item->delete();
 
-        return redirect()->route('admin.menus.items.index', array_merge($request->query(), ['code' => $code]))->with('success', __('messages.menuitem.delete_success', ['name' => $name]));
+        return redirect()->route('admin.menus.items.index', array_merge($request->query(), ['code' => $code]))->with('success', __('messages.menuitem.delete_success', ['title' => $title]));
     }
 
     /**
@@ -390,6 +397,44 @@ class ItemController extends Controller
 
         $item->down();
         return redirect()->route('admin.menus.items.index', array_merge($request->query(), ['code' => $code]));
+    }
+
+    /*
+     * Sets the row values specific to the Item model.
+     *
+     * @param  Array  $rows
+     * @param  Array of stdClass Objects  $columns
+     * @param  Kalnoy\Nestedset\Collection  $items
+     * @return void
+     */
+    private function setRowValues(&$rows, $columns, $items)
+    {
+        $traverse = function ($menuItems) use (&$traverse, $rows, $columns) {
+            // Use the number of times the recursive function is called as the $rows id.
+            static $counter = 0;
+
+            foreach ($menuItems as $item) {
+                foreach ($columns as $column) {
+                    if ($column->name == 'locales') {
+                        $locales = '';
+
+                        foreach ($item->translations as $translation) {
+                            $locales .= $translation->locale.', ';
+                        }
+
+                        $locales = substr($locales, 0, -2);
+
+                        $rows[$counter]->locales = $locales;
+                    }
+                }
+
+                $counter++;
+
+                $traverse($item->children);
+            }
+        };
+
+        $traverse($items);
     }
 
     /*

@@ -97,6 +97,10 @@ class RegisterController extends Controller
 	    $user->assignRole('registered');
 	}
 
-	Email::sendEmail('user-registration', $user);
+        $locale = $request->segment(1);
+
+	Email::sendEmail('user-registration', $user, $locale);
+
+        return redirect(app()->getLocale().RouteServiceProvider::PROFILE);
     }
 }

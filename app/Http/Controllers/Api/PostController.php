@@ -29,11 +29,27 @@ class PostController extends Controller
 
     public function index(Request $request)
     {
-        $query = Post::query()->select('posts.id', 'title', 'slug', 'posts.access_level', 'excerpt', 'content', 'users.name as owner_name')
-                              ->join('users', 'posts.owned_by', '=', 'users.id');
+        // Note: segment(1) is "api"
+        $locale = ($request->segment(2)) ? $request->segment(2) : config('app.locale');
+
+        $query = Post::query()->selectRaw('posts.id, users.name as owner_name,'.
+                                           Post::getFallbackCoalesce(['title', 'slug', 'excerpt', 'alt_img']))
+              ->leftJoin('users', 'posts.owned_by', '=', 'users.id');
         // Join the role tables to get the owner's role level.
         $query->join('model_has_roles', 'posts.owned_by', '=', 'model_id')
               ->join('roles', 'roles.id', '=', 'role_id');
+
+        $query->leftJoin('translations AS locale', function ($join) use($locale) {
+            $join->on('posts.id', '=', 'locale.translatable_id')
+                 ->where('locale.translatable_type', Post::class)
+                 ->where('locale.locale', $locale);
+        }); 
+        // Switch to the fallback locale in case locale is not found.
+        $query->leftJoin('translations AS fallback', function ($join) {
+            $join->on('posts.id', '=', 'fallback.translatable_id')
+                 ->where('fallback.translatable_type', Post::class)
+                 ->where('fallback.locale', config('app.fallback_locale'));
+        })->whereIn('posts.access_level', ['public_ro', 'public_rw']);
 
         if (auth('api')->check()) {
             // N.B: Put the following part of the query into brackets.
@@ -66,57 +82,57 @@ class PostController extends Controller
         return ($perPage == -1) ? response()->json($query->paginate($query->count())) : response()->json($query->paginate($perPage));
     }
 
-    public function show($post)
+    public function show($locale, $post)
     {
-        if (!$post = Post::select('id', 'title', 'slug', 'access_level', 'owned_by', 'excerpt', 'content')->find($post)) {
+        $post = Post::selectRaw('posts.id, posts.access_level, posts.owned_by,'.
+                                 Post::getFallbackCoalesce(['title', 'slug', 'content', 'excerpt',
+                                                            'raw_content', 'alt_img', 'extra_fields',
+                                                            'meta_data']))
+            ->leftJoin('translations AS locale', function ($join) use($locale) {
+                $join->on('posts.id', '=', 'locale.translatable_id')
+                     ->where('locale.translatable_type', Post::class)
+                     ->where('locale.locale', $locale);
+            // Switch to the fallback locale in case locale is not found, (used on front-end).
+            })->leftJoin('translations AS fallback', function ($join) {
+                  $join->on('posts.id', '=', 'fallback.translatable_id')
+                       ->where('fallback.translatable_type', Post::class)
+                       ->where('fallback.locale', config('app.fallback_locale'));
+        })->find($post);
+
+        if (!$post) {
             return response()->json([
-                'message' => __('messages.generic.ressource_not_found')
+                'message' => __('messages.generic.resource_not_found')
             ], 404);
-        }
+        }   
 
         // Check for private posts.
         if (!$post->canAccess('api')) {
             return response()->json([
                 'message' => __('messages.generic.access_not_auth')
             ], 403);
-        }
-
-        // Work on a cloned object to prevent extra data in the response whenever
-        // we access to a relationship: (eg: $post->image, $post->layoutItems).
-        $cPost = clone $post;
-        $post->image_url = ($cPost->image) ? url('/').$cPost->image->getUrl() : '';
-        $post->thumbnail_url = ($cPost->image) ? url('/').$cPost->image->getThumbnailUrl() : '';
-        $layout = [];
-
-        // Loop through the layout items if any.
-        foreach ($cPost->layoutItems as $layoutItem) {
-            $item = new \stdClass;
-            $item->type = $layoutItem->type;
-            $item->text = $layoutItem->text;
-            $item->data = $layoutItem->data;
-            $item->order = $layoutItem->order;
-            $layout[] = $item;
-        }
-
-        $post->layout_items = $layout;
+        }   
 
         return response()->json($post);
     }
 
     public function store(StoreRequest $request)
     {
-        Post::create([
-            'title' => $request->input('title'), 
-            'slug' => ($request->input('slug', null)) ? Str::slug($request->input('slug'), '-') : Str::slug($request->input('title'), '-'),
+        $post = Post::create([
             'status' => 'unpublished',
-            'content' => $request->input('content'), 
             'access_level' => $request->input('access_level'), 
             'owned_by' => auth('api')->user()->id,
             'main_cat_id' => $request->input('main_cat_id', null),
             'settings' => $request->input('settings', $this->settings),
-            'excerpt' => $request->input('excerpt', null),
-        ]);
-        
+        ]); 
+
+        $post->updated_by = auth('api')->user()->id;
+        $post->save();
+
+        $translation = $post->getOrCreateTranslation(config('app.locale'));
+        $translation->setAttributes($request, ['title', 'content', 'excerpt', 'alt_img', 'meta_data', 'extra_fields']);
+        $translation->slug = ($request->input('slug')) ? Str::slug($request->input('slug'), '-') : Str::slug($request->input('title'), '-');
+        $translation->save();
+            
         return response()->json([
             'message' => __('messages.post.create_success')
         ], 201);
@@ -130,18 +146,19 @@ class PostController extends Controller
             ], 403);
         }
 
-        $post->title = $request->input('title');
-        $post->slug = ($request->input('slug')) ? Str::slug($request->input('slug'), '-') : Str::slug($request->input('title'), '-');
-        $post->content = $request->input('content');
-        $post->excerpt = $request->input('excerpt', null);
         $post->settings = $request->input('settings', $this->settings);
         $post->updated_by = auth('api')->user()->id;
 
-        if ($post->canChangeAccessLevel('api')) {
+        if ($post->canChangeAccessLevel()) {
             $post->access_level = $request->input('access_level');
         }
 
         $post->save();
+
+        $translation = $post->getOrCreateTranslation($request->input('locale'));
+        $translation->setAttributes($request, ['title', 'content', 'excerpt', 'alt_img', 'meta_data', 'extra_fields']);
+        $translation->slug = ($request->input('slug')) ? Str::slug($request->input('slug'), '-') : Str::slug($request->input('title'), '-');
+        $translation->save();
         
         return response()->json([
             'message' => __('messages.post.update_success')
@@ -156,7 +173,7 @@ class PostController extends Controller
             ], 403);
         }
 
-        $title = $post->title;
+        $title = $post->getTranslation(config('app.locale'))->title;
         $post->delete();
 
         return response()->json([

@@ -25,6 +25,21 @@
     "options": [] 
   },
   {
+    "label": "labels.generic.locale",
+    "type": "select",
+    "name": "locale",
+    "id": "locale",
+    "options": []
+  },
+  {
+    "label": "labels.generic.page",
+    "type": "select",
+    "name": "page",
+    "id": "page",
+    "blank": "labels.generic.none",
+    "options": []
+  },
+  {
     "label": "labels.generic.status",
     "type": "select",
     "name": "status",
@@ -62,6 +77,7 @@
     "function": "group",
     "extra": ["multiple","title_as_id"],
     "id": "groups",
+    "class": "_locked",
     "blank": "labels.generic.select_option",
     "options": [] 
   },

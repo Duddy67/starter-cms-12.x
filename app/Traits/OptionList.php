@@ -128,7 +128,15 @@ trait OptionList
     {
         // Get the categorizable model class name.
         $class = class_basename(get_class($this));
-        $nodes = Category::where('collection_type', lcfirst($class))->defaultOrder()->get()->toTree();
+
+        // Get the categories of the model.
+        $nodes = Category::select('categories.*', 'translations.name as name')
+            ->join('translations', function($join) {
+                $join->on('categories.id', '=', 'translatable_id')
+                     ->where('translations.translatable_type', '=', Category::class)
+                     ->where('locale', '=', config('app.locale'));
+        })->where('categories.collection_type', lcfirst($class))->defaultOrder()->get()->toTree();
+
         $options = [];
         $userGroupIds = auth()->user()->getGroupIds();
 
@@ -156,7 +164,15 @@ trait OptionList
      */  
     public function getParentCategoryOptions(): array
     {
-        $nodes = Category::where('collection_type', $this->collection_type)->defaultOrder()->get()->toTree();
+        // Get the given category model class name.
+        $class = get_class($this);
+        $nodes = Category::select('categories.*', 'translations.name as name')
+            ->join('translations', function($join) {
+                $join->on('categories.id', '=', 'translatable_id')
+                     ->where('translations.translatable_type', '=', Category::class)
+                     ->where('locale', '=', config('app.locale'));
+        })->where('categories.collection_type', $this->collection_type)->defaultOrder()->get()->toTree();
+
         $options = [];
         // Defines the state of the current instance.
         //$isNew = ($node && $node->id) ? false : true;
@@ -256,6 +272,18 @@ trait OptionList
 
         foreach ($owners as $owner) {
             $options[] = ['value' => $owner->id, 'text' => $owner->name];
+        }
+
+        return $options;
+    }
+
+    public function getLocaleOptions()
+    {
+        $locales = config('app.locales');
+        $options = [];
+
+        foreach ($locales as $locale) {
+            $options[] = ['value' => $locale, 'text' => __('labels.locales.'.$locale)];
         }
 
         return $options;

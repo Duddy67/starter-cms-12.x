@@ -316,9 +316,12 @@ trait Form
      */  
     public function getFieldGroups(array $fields, array $groups): array
     {
+        // Check if the item model is translatable (ie: if it uses the Translatable trait).
+        $isTranslatable = (in_array('App\Traits\Translatable', class_uses('\\'.get_class($this->item)))) ? true : false;
+
         foreach ($groups as $group) {
-            // Check first that group name exists as attribute in the model.
-            if (\Schema::hasColumn($this->item->getTable(), $group)) {
+            // Check first that group name exists as attribute in the item model or in the translation table.
+            if (\Schema::hasColumn($this->item->getTable(), $group) || ($isTranslatable && \Schema::hasColumn('translations', $group))) {
                 $data = $this->getData($group);
 
                 foreach ($data as $field) {

@@ -111,6 +111,8 @@ return [
 	'name' => 'Name',
 	'slug' => 'Slug',
 	'code' => 'Code',
+        'locale' => 'Locale',
+        'locales' => 'Locales',
 	'alias' => 'Alias',
 	'page' => 'Page',
 	'id' => 'ID',
@@ -245,6 +247,11 @@ return [
     ],
     'pagination' => [
 	'results' => 'Showing :first to :last of :total results',
+    ],
+    'locales' => [
+        'en' => 'English',
+        'fr' => 'French',
+        'es' => 'Spanish',
     ],
 ];
 

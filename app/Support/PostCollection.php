@@ -11,13 +11,13 @@ class PostCollection extends Collection
     /*
      * Returns posts from a category sorted by the given column.
      *
-     * @param string  $slug    The slug of the category to filter from.
+     * @param integer $id      The id of the category to filter from.
      * @param string  $column  The column by which posts are sorted (Optional).
      * @param boolean $desc    When set to true, posts are sorted in the opposite order (Optional).
      *
      * @return Object  The sorted posts filtered by the given category.
      */
-    public function filterPostsByCategory(string $slug, string $column = '', bool $desc = false)
+    public function filterPostsByCategory(int $id, string $column = '', bool $desc = false)
     {
         if (!empty($column)) {
             // Sort posts by the given column.
@@ -27,11 +27,11 @@ class PostCollection extends Collection
             $posts = $this;
         }
 
-        return $posts->filter(function ($post) use($slug) {
+        return $posts->filter(function ($post) use($id) {
             // Loop through the post's categories.
             foreach ($post->categories as $category) {
-                // Check for the given slug.
-                if ($category->slug == $slug) {
+                // Check for the given id.
+                if ($category->id == $id) {
                     return $post;
                 }
             }
@@ -41,23 +41,23 @@ class PostCollection extends Collection
     /*
      * Returns posts filtered by any of the given categories (OR clause).
      *
-     * @param array $slugs    The slug of the categories to filter from.
-     * @param array $except   The slug of the categories to ignore (Optional).
+     * @param array $ids      The id of the categories to filter from.
+     * @param array $except   The id of the categories to ignore (Optional).
      *
      * @return Object  The posts filtered by the given categories.
      */
-    public function filterPostsByCategories(array $slugs, array $except = [])
+    public function filterPostsByCategories(array $ids, array $except = [])
     {
-        return $this->filter(function ($post) use($slugs, $except) {
+        return $this->filter(function ($post) use($ids, $except) {
             $results = [];
 
             foreach ($post->categories as $category) {
-                // Store the slug of the categories the post belongs to.
-                $results[] = $category->slug;
+                // Store the id of the categories the post belongs to.
+                $results[] = $category->id;
             }
 
             // Make sure the post belongs to any of the given categories (OR).
-            if (!empty(array_intersect($slugs, $results)) && empty(array_intersect($except, $results))) {
+            if (!empty(array_intersect($ids, $results)) && empty(array_intersect($except, $results))) {
                 return $post;
             }
         });
@@ -66,38 +66,38 @@ class PostCollection extends Collection
     /*
      * Returns posts filtered by all of the given categories (AND clause).
      *
-     * @param array $slugs    The slug of the categories to filter from.
-     * @param array $except   The slug of the categories to ignore (Optional).
+     * @param array $ids    The id of the categories to filter from.
+     * @param array $except   The id of the categories to ignore (Optional).
      *
      * @return Object  The posts filtered by the given categories.
      */
-    public function filterPostsByAllCategories(array $slugs, array $except = [])
+    public function filterPostsByAllCategories(array $ids, array $except = [])
     {
-        return $this->filter(function ($post) use($slugs, $except) {
+        return $this->filter(function ($post) use($ids, $except) {
             $results = [];
 
             foreach ($post->categories as $category) {
-                // Store the slug of the categories the post belongs to.
-                $results[] = $category->slug;
+                // Store the id of the categories the post belongs to.
+                $results[] = $category->id;
             }
 
             // Make sure the post belongs to all the given categories (AND).
-            if (count(array_intersect($slugs, $results)) == count($slugs) && empty(array_intersect($except, $results))) {
+            if (count(array_intersect($ids, $results)) == count($ids) && empty(array_intersect($except, $results))) {
                 return $post;
             }
         });
     }
 
     /*
-     * Returns posts filtered by slug and sorted by the given column.
+     * Returns posts filtered by id and sorted by the given column.
      *
-     * @param array   $slugs   The slug of the posts to filter.
+     * @param array   $ids   The id of the posts to filter.
      * @param string  $column  The column by which posts are sorted (Optional).
      * @param boolean $desc    When set to true, posts are sorted in the opposite order (Optional).
      *
      * @return Object  The filtered posts.
      */
-    public function filterPostsBySlug(array $slugs, string $column = '', bool $desc = false)
+    public function filterPostsBySlug(array $ids, string $column = '', bool $desc = false)
     {
         if (!empty($column)) {
             // Sort posts by the given column.
@@ -107,8 +107,8 @@ class PostCollection extends Collection
             $posts = $this;
         }
 
-        return $posts->filter(function ($post) use($slugs) {
-            if (in_array($post->slug, $slugs)) {
+        return $posts->filter(function ($post) use($ids) {
+            if (in_array($post->id, $ids)) {
                 return $post;
             }
         });

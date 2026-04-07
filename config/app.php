@@ -84,6 +84,9 @@ return [
 
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
 
+    //  List all locales that the application works with.
+    'locales' => ['en', 'fr', 'es'],
+
     /*
     |--------------------------------------------------------------------------
     | Encryption Key

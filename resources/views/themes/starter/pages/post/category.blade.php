@@ -10,7 +10,7 @@
     <img class="post-image img-fluid" src="{{ url('/').$category->image->getThumbnailUrl() }}" >
 @endif
 
-@if ($category->settings['show_search'])
+@if ($category->settings['show_search'] && (count($posts) || isset($query['search'])))
     <div class="card">
 	<div class="card-body">
 	    @include('themes.starter.partials.filters')

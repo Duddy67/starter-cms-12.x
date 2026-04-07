@@ -188,14 +188,14 @@
                 </button>
                 <div class="navbar-collapse navbar" id="navbar">
                    <div class="col ms-4">
-                        <a class="text-secondary me-4" href="{{ route('logout') }}"
+                        <a class="text-secondary me-4" href="{{ route('logout', ['locale' => config('app.locale')]) }}"
                            onclick="event.preventDefault();
                                          document.getElementById('logout-form').submit();"><i class="fa-solid fa-right-from-bracket"></i>
                          {{ __('labels.user.logout') }}</a>
-                        <form id="logout-form" action="{{ route('logout') }}" method="POST" style="display: none;">
+                        <form id="logout-form" action="{{ route('logout', ['locale' => config('app.locale')]) }}" method="POST" style="display: none;">
                             @csrf
                         </form>
-                        <a class="text-secondary" href="{{ route('site.index') }}" target="_blank"><i class="fa-solid fa-globe pe-1"></i>{{ __('labels.generic.website') }}</a>
+                        <a class="text-secondary" href="{{ route('site.index', ['locale' => config('app.locale')]) }}" target="_blank"><i class="fa-solid fa-globe pe-1"></i>{{ __('labels.generic.website') }}</a>
                    <div>
                 </div>
             </nav>

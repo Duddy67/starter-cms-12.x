@@ -1,4 +1,6 @@
-<h1 class="h2"><a href="{{ url($post->getUrl()) }}">{{ $post->title }}</a></h1>
+<h1 class="h2"><a href="{{ url($locale.$post->getUrl()) }}">{{ $post->title }}</a></h1>
+
+@php $layoutItems = $post->getLayoutItems($locale); $count = $limit = 0; @endphp
 
 @php $count = $limit = 0; @endphp
 @foreach ($post->layoutItems as $key => $item)
@@ -49,8 +51,9 @@
 @if ($post->settings['show_categories'] && count($post->categories))
     <p class="categories">
         <h6>Categories</h6>
+        @php $categories = $post->getCategories($locale); @endphp
         @foreach ($post->categories as $category)
-            <a href="{{ url('/'.$segments['posts'].$category->getUrl()) }}" class="btn btn-primary btn-sm active" role="button" aria-pressed="true">{{ $category->name }}</a>
+            <a href="{{ url('/'.$locale.'/'.$segments['posts'].$category->getUrl()) }}" class="btn btn-primary btn-sm active" role="button" aria-pressed="true">{{ $category->name }}</a>
         @endforeach
     </p>
 @endif

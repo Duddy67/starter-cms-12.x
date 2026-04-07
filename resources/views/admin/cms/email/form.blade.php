@@ -48,6 +48,10 @@
                 <div class="tab-pane fade" id="text-tab-pane" role="tab-panel" aria-labelledby="text-tab" tabindex="0">
 	    @endif
 
+            @if ($field->name == 'locale')
+                @php $value = $locale; @endphp
+            @endif
+
 	    <x-input :field="$field" :value="$value" />
 
 	    @if ($field->name == 'body_html')
@@ -60,6 +64,8 @@
 	    @endif
         @endforeach
 
+        <input type="hidden" id="currentLocale" value="{{ $locale }}">
+        <input type="hidden" id="cancelChangeLocale" value="0">
 	<input type="hidden" id="cancelEdit" value="{{ route('admin.cms.emails.cancel', $query) }}">
 	<input type="hidden" id="close" name="_close" value="0">
         <x-js-messages />
@@ -91,6 +97,7 @@
     <script type="text/javascript" src="{{ asset('/js/datepicker.js') }}"></script>
     <script type="text/javascript" src="{{ asset('/vendor/tinymce/tinymce.min.js') }}"></script>
     <script type="text/javascript" src="{{ asset('/vendor/codalia/c.ajax.js') }}"></script>
+    <script type="text/javascript" src="{{ asset('/js/admin/locale.js') }}"></script>
     <script type="text/javascript" src="{{ asset('/js/admin/form.js') }}"></script>
     <script type="text/javascript" src="{{ asset('/js/admin/disable.toolbars.js') }}"></script>
     <script type="text/javascript" src="{{ asset('/js/tinymce/filemanager.js') }}"></script>

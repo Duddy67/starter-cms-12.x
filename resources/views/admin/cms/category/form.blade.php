@@ -56,6 +56,11 @@
                 @endif
 
                 @php $value = (isset($category) || str_starts_with($field->name, 'alias_extra_field_')) ? old($field->name, $field->value) : old($field->name); @endphp
+
+                @if ($field->name == 'locale')
+                    @php $value = $locale; @endphp
+                @endif
+
                 <x-input :field="$field" :value="$value" />
 
                 @if ($field->name == 'image')
@@ -72,6 +77,8 @@
             @endforeach
         </div>
 
+        <input type="hidden" id="currentLocale" value="{{ $locale }}">
+        <input type="hidden" id="cancelChangeLocale" value="0">
         <input type="hidden" id="cancelEdit" value="{{ route('admin.'.$collection.'.categories.cancel', $query) }}">
         <input type="hidden" id="siteUrl" value="{{ url('/') }}">
         <input type="hidden" id="close" name="_close" value="0">
@@ -111,6 +118,7 @@
     <script type="text/javascript" src="{{ asset('/js/datepicker.js') }}"></script>
     <script type="text/javascript" src="{{ asset('/vendor/tinymce/tinymce.min.js') }}"></script>
     <script type="text/javascript" src="{{ asset('/vendor/codalia/c.ajax.js') }}"></script>
+    <script type="text/javascript" src="{{ asset('/js/admin/locale.js') }}"></script>
     <script type="text/javascript" src="{{ asset('/js/admin/form.js') }}"></script>
     <script type="text/javascript" src="{{ asset('/js/admin/disable.toolbars.js') }}"></script>
     <script type="text/javascript" src="{{ asset('/js/admin/category/customized.items.per.page.js') }}"></script>

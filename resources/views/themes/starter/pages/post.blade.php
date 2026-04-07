@@ -1,7 +1,7 @@
 @if ($post->layoutItems()->exists())
     @include('themes.starter.pages.'.$post->page)
 @else
-    <h1 class="h2"><a href="{{ url($post->getUrl()) }}">{{ $post->title }}</a></h1>
+    <h1 class="h2"><a href="{{ url('/'.$locale.$post->getUrl()) }}">{{ $post->title }}</a></h1>
 
     @if ($post->settings['show_created_at'])
         <div>@date ($post->created_at->tz($page['timezone']))</div>
@@ -31,8 +31,9 @@
     @if ($post->settings['show_categories'] && count($post->categories))
         <p class="categories">
             <h6>Categories</h6>
+            @php $categories = $post->getCategories($locale); @endphp
             @foreach ($post->categories as $category)
-                <a href="{{ url('/'.$segments['posts'].$category->getUrl()) }}" class="btn btn-primary btn-sm active" role="button" aria-pressed="true">{{ $category->name }}</a>
+                <a href="{{ url('/'.$locale.'/'.$segments['posts'].$category->getUrl()) }}" class="btn btn-primary btn-sm active" role="button" aria-pressed="true">{{ $category->name }}</a>
             @endforeach
         </p>
     @endif

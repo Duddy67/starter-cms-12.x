@@ -1,4 +1,6 @@
+
 @if (isset($category) && $category)
+
     @if (isset($posts) && count($posts))
         @php $selections = $posts->filterPostsBySlug(['lolita', '1984'], 'created_at', true); @endphp
         @if (!$selections->isEmpty())

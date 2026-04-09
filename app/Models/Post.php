@@ -49,6 +49,9 @@ class Post extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'checked_out_time' => 'datetime',
+        'extra_fields' => 'array',
+        'meta_data' => 'array',
+        'settings' => 'array'
     ];
 
     /**

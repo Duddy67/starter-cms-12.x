@@ -153,26 +153,26 @@ class Category extends Model
 
     public static function getCategory(int|string $id, string $collectionType, string $locale)
     {
-        // Check if the $id variable is passed as a slug value (used on front-end).
-        $slug = (is_string($id)) ? true : false;
+        // Check if the $id variable is passed as slug value (string) or regular id (integer). (used on front-end).
+        $isStringId = (is_numeric($id)) ? false : true;
 
         $query = Category::selectRaw('categories.*, users.name as owner_name, users2.name as modifier_name,'.
                                      Category::getFallbackCoalesce(['name', 'slug', 'description',
                                                                         'alt_img', 'extra_fields', 'meta_data']))
             ->leftJoin('users', 'categories.owned_by', '=', 'users.id')
             ->leftJoin('users as users2', 'categories.updated_by', '=', 'users2.id')
-            ->leftJoin('translations AS locale', function ($join) use($id, $locale, $slug) {
+            ->leftJoin('translations AS locale', function ($join) use($locale) {
                 $join->on('categories.id', '=', 'locale.translatable_id')
                      ->where('locale.translatable_type', Category::class)
                      ->where('locale.locale', $locale);
         // Switch to the fallback locale in case locale is not found, (used on front-end).
-        })->leftJoin('translations AS fallback', function ($join) use($id, $slug) {
+        })->leftJoin('translations AS fallback', function ($join) {
               $join->on('categories.id', '=', 'fallback.translatable_id')
                    ->where('fallback.translatable_type', Category::class)
                    ->where('fallback.locale', config('app.fallback_locale'));
         });
 
-        if ($slug) {
+        if ($isStringId) {
             $query->where(function($query) use($id) {
                 $query->where('locale.slug', $id)->orWhere('fallback.slug', $id);
             });
@@ -180,7 +180,7 @@ class Category extends Model
 
         $query->where('categories.collection_type', $collectionType);
 
-        return ($slug) ? $query->first() : $query->find($id);
+        return ($isStringId) ? $query->first() : $query->find($id);
     }
 
     public function getUrl($slug = null)

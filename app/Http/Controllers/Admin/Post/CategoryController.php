@@ -55,6 +55,7 @@ class CategoryController extends Controller
         $filters = $this->getFilters($request);
         $items = Category::getCategories($request, 'post');
         $rows = $this->getRowTree($columns, $items);
+        $this->setRowValues($rows, $columns, $items);
         $query = $request->query();
         $url = ['route' => 'admin.posts.categories', 'item_name' => 'category', 'query' => $query];
         $collection = 'posts';

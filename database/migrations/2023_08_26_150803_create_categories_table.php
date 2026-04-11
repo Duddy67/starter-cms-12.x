@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('code', 30)->nullable();
             $table->char('status', 12);
             $table->char('access_level', 10);
+            $table->string('page', 30)->nullable();
             $table->json('settings');
             $table->string('collection_type', 30)->nullable();
 	    $table->nestedSet();

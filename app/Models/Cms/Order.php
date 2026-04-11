@@ -69,7 +69,7 @@ class Order extends Model implements Sortable
 
         foreach ($categories as $category) {
             if (!in_array($category, $olds)) {
-                $order = Order::create(['category_id' => $category, 'name' => $name]);
+                $order = Order::create(['category_id' => $category]);
                 $item->orders()->save($order);
             }
         }

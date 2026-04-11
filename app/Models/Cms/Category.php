@@ -188,7 +188,7 @@ class Category extends Model
         $slug = ($slug) ? $slug : $this->slug;
 
         $segments = Setting::getSegments(ucfirst($this->collection_type));
-        return '/'.$segments['categories'].'/'.$this->id.'/'.$this->slug;
+        return '/'.$segments['categories'].'/'.$this->id.'/'.$slug;
     }
 
     /*

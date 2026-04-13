@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Providers\RouteServiceProvider;
+use Illuminate\Http\Request;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use App\Models\Cms\Setting;
 
@@ -52,5 +53,18 @@ class LoginController extends Controller
         $allowRegistering = Setting::getValue('website', 'allow_registering', 0);
 
         return view('themes.'.$theme.'.auth.login', compact('allowRegistering'));
+    }
+
+    /**
+     * The user has been authenticated.
+     * Info: Overrides the AuthenticatesUsers trait method.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  mixed  $user
+     * @return mixed
+     */
+    protected function authenticated(Request $request, $user)
+    {
+        return redirect(app()->getLocale().RouteServiceProvider::PROFILE);
     }
 }

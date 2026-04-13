@@ -91,13 +91,13 @@ class PostCollection extends Collection
     /*
      * Returns posts filtered by id and sorted by the given column.
      *
-     * @param array   $ids   The id of the posts to filter.
+     * @param array   $ids     The id of the posts to filter.
      * @param string  $column  The column by which posts are sorted (Optional).
      * @param boolean $desc    When set to true, posts are sorted in the opposite order (Optional).
      *
      * @return Object  The filtered posts.
      */
-    public function filterPostsBySlug(array $ids, string $column = '', bool $desc = false)
+    public function filterPostsById(array $ids, string $column = '', bool $desc = false)
     {
         if (!empty($column)) {
             // Sort posts by the given column.

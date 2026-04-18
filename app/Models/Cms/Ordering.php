@@ -11,7 +11,7 @@ use Spatie\EloquentSortable\SortableTrait;
 /*
  * Allows a model item (post, product...) to be ordered by category.
  */
-class Order extends Model implements Sortable
+class Ordering extends Model implements Sortable
 {
     use HasFactory, SortableTrait;
 
@@ -20,7 +20,7 @@ class Order extends Model implements Sortable
      *
      * @var string
      */
-    protected $table = 'orders';
+    protected $table = 'orderings';
 
     /**
      * Indicates if the model should be timestamped.
@@ -66,14 +66,14 @@ class Order extends Model implements Sortable
     public static function sync($item, $categories)
     {
         // Get the previous categories linked to the item.
-        $olds = $item->orders->pluck('category_id')->toArray();
+        $olds = $item->orderings->pluck('category_id')->toArray();
 
         foreach ($categories as $category) {
             if (!in_array($category, $olds)) {
                 // Use the name or title attribute as the item name.
                 $name = (isset($item->name)) ? $item->name : $item->title;
-                $order = Order::create(['category_id' => $category, 'name' => $name]);
-                $item->orders()->save($order);
+                $ordering = Ordering::create(['category_id' => $category, 'name' => $name]);
+                $item->orderings()->save($ordering);
             }
         }
 
@@ -81,18 +81,18 @@ class Order extends Model implements Sortable
         $olds = array_diff($olds, $categories);
 
         foreach ($olds as $old) {
-            foreach ($item->orders as $order) {
-                if ($order->category_id == $old) {
-                    $order->delete();
+            foreach ($item->orderings as $ordering) {
+                if ($ordering->category_id == $old) {
+                    $ordering->delete();
                 }
             }
 
             $category = Category::find($old);
 
             // Reorder the other items in the category.
-            foreach ($category->orders as $i => $order) {
-                $order->item_order = $i + 1;
-                $order->save();
+            foreach ($category->orderings as $i => $ordering) {
+                $ordering->item_order = $i + 1;
+                $ordering->save();
             }
         }
     }

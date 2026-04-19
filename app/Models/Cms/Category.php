@@ -9,7 +9,7 @@ use App\Models\Cms\Setting;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Post;
 use App\Models\Post\Setting as PostSetting;
-use App\Models\Cms\Order;
+use App\Models\Cms\Ordering;
 use App\Models\Cms\Document;
 use App\Traits\Node;
 use App\Traits\OptionList;
@@ -95,11 +95,11 @@ class Category extends Model
     }
 
     /**
-     * The item orders that belong to the category.
+     * The item orderings that belong to the category.
      */
-    public function orders()
+    public function orderings()
     {
-        return $this->hasMany(Order::class)->orderBy('item_order');
+        return $this->hasMany(Ordering::class)->orderBy('item_order');
     }
 
     /**
@@ -119,7 +119,7 @@ class Category extends Model
      */
     public function delete()
     {
-        $this->orders()->delete();
+        $this->orderings()->delete();
         $this->image()->delete();
         $this->translations()->delete();
         $this->posts()->detach();

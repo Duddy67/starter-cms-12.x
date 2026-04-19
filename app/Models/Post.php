@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use App\Models\Cms\Setting;
 use App\Models\Cms\Category;
-use App\Models\Cms\Order;
+use App\Models\Cms\Ordering;
 use App\Models\User\Group;
 use App\Traits\AccessLevel;
 use App\Traits\CheckInCheckOut;
@@ -91,9 +91,9 @@ class Post extends Model
     /**
      * The orderings that belong to the post.
      */
-    public function orders(): MorphMany
+    public function orderings(): MorphMany
     {
-        return $this->morphMany(Order::class, 'orderable');
+        return $this->morphMany(Ordering::class, 'orderable');
     }
 
     /**
@@ -127,7 +127,7 @@ class Post extends Model
     {
         $this->categories()->detach();
         $this->groups()->detach();
-        $this->orders()->delete();
+        $this->orderings()->delete();
         $this->comments()->delete();
         $this->image()->delete();
 
@@ -189,7 +189,7 @@ class Post extends Model
 
             // Check for numerical sorting.
             if (Setting::canOrderBy('categories', Post::getOrderByExcludedFilters()) && Setting::isSortedByOrder()) {
-                $query->join('orders', function ($join) use($categories) { 
+                $query->join('orderings', function ($join) use($categories) { 
                     $join->on('posts.id', '=', 'orderable_id')
                          ->where('orderable_type', '=', Post::class)
                          ->where('category_id', '=', $categories[0]);
@@ -434,7 +434,7 @@ class Post extends Model
 
             // Check for numerical sorting.
             if ($ordering[1] == 'order') {
-                $query->join('orders', function($join) use($ordering, $category) { 
+                $query->join('orderings', function($join) use($ordering, $category) { 
                     $join->on('posts.id', '=', 'orderable_id')
                          ->where('orderable_type', '=', Post::class)
                          ->where('category_id', '=', $category->id);

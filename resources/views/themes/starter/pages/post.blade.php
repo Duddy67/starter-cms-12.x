@@ -17,6 +17,14 @@
         </div>
     @endif
 
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#exampleModal">
+      Launch demo modal
+    </button>
+    <!-- Modal -->
+    <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel">
+        @include('themes.starter.partials.post.share')
+    </div>
+
     <div class="content">
         @if ($post->settings['show_image'] && $post->image)
             <img class="post-image img-fluid" src="{{ url('/').$post->image->getThumbnailUrl() }}" >

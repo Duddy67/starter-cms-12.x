@@ -11,19 +11,21 @@
         <div>{{ $post->owner_name }}</div>
     @endif
 
+    @if (isset($post->settings['show_share_button']) && $post->settings['show_share_button'])
+        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#shareModal">
+            @lang ('labels.generic.share') <i class="bi-share" aria-hidden="true"></i>
+        </button>
+        <!-- Modal -->
+        <div class="modal fade" id="shareModal" tabindex="-1" aria-labelledby="shareModalLabel">
+            @include('themes.starter.partials.post.share')
+        </div>
+    @endif
+
     @if ($post->settings['show_excerpt'])
         <div class="excerpt">
             {!! $post->excerpt !!}
         </div>
     @endif
-
-    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#exampleModal">
-      Launch demo modal
-    </button>
-    <!-- Modal -->
-    <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel">
-        @include('themes.starter.partials.post.share')
-    </div>
 
     <div class="content">
         @if ($post->settings['show_image'] && $post->image)

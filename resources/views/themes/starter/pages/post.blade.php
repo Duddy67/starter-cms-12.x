@@ -16,9 +16,7 @@
             @lang ('labels.generic.share') <i class="bi-share" aria-hidden="true"></i>
         </button>
         <!-- Modal -->
-        <div class="modal fade" id="shareModal" tabindex="-1" aria-labelledby="shareModalLabel">
-            @include('themes.starter.partials.post.share')
-        </div>
+        @include('themes.starter.partials.post.share')
     @endif
 
     @if ($post->settings['show_excerpt'])

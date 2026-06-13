@@ -1,3 +1,4 @@
+<div class="modal fade" id="shareModal" tabindex="-1" aria-labelledby="shareModalLabel">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
@@ -37,6 +38,7 @@
       </div>
     </div>
   </div>
+</div>
 
 <script>
     function copyToClipboard() {
